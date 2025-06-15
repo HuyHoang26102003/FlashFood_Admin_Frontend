@@ -1,0 +1,3 @@
+export const HARDED_CODE_DATA = {
+  SUPER_ADMIN_ID: "FF_ADMIN_8a8ffac8-563a-4c17-951c-50f56b8455cf",
+};
