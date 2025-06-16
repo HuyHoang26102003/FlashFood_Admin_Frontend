@@ -7,14 +7,14 @@ export interface IncomeData {
 export interface OrderStats {
   date: string;
   total: number;
-  pending: number;
-  en_route: number;
   cancelled: number;
   delivered: number;
-  preparing: number;
-  dispatched: number;
-  ready_for_pickup: number;
-  restaurant_pickup: number;
+}
+
+export interface MetricData {
+  metric: number;
+  changeType: "real" | "percentage";
+  monthlyChanges: number;
 }
 
 export interface UserGrowthData {
@@ -26,17 +26,17 @@ export interface UserGrowthData {
 }
 
 export interface DashboardData {
-  average_customer_satisfaction: number;
-  average_delivery_time: number;
-  churn_rate: number;
+  average_customer_satisfaction: MetricData;
+  average_delivery_time: MetricData;
+  churn_rate: MetricData;
   created_at: string;
-  gross_from_promotion: string;
+  gross_from_promotion: MetricData;
   gross_income: IncomeData[];
   id: string;
   net_income: IncomeData[];
-  order_cancellation_rate: number;
+  order_cancellation_rate: MetricData;
   order_stats: OrderStats[];
-  order_volume: number;
+  order_volume: MetricData;
   period_end: string;
   period_start: string;
   period_type: string;

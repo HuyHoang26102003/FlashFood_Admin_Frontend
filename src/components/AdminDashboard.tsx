@@ -54,10 +54,10 @@ const AdminDashboard = () => {
         {
           id: 2,
           type: "TOTAL_REVENUE" as CardCategory,
-          value: dashboardData.order_volume?.toString() || "0",
+          value: dashboardData.order_volume?.metric.toString() || "0",
           label: "Total Orders",
           icon: FaShoppingCart,
-          difference: 12,
+          difference: dashboardData.order_volume?.monthlyChanges || 12,
         },
         {
           id: 4,
@@ -70,10 +70,10 @@ const AdminDashboard = () => {
         {
           id: 5,
           type: "SATISFACTION_RATE" as CardCategory,
-          value: `${(dashboardData.churn_rate * 100).toFixed(1)}%` || "0%",
+          value: `${(dashboardData.churn_rate?.metric * 100).toFixed(1)}%` || "0%",
           label: "Churn Rate",
           icon: FaChartLine,
-          difference: -3, // Negative because lower churn is better
+          difference: dashboardData.churn_rate?.monthlyChanges ? (dashboardData.churn_rate.monthlyChanges * 100) : -3,
         },
       ]
     : [];

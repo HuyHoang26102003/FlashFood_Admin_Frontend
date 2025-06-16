@@ -54,8 +54,9 @@ export function UserGrowthRateChart({
   // Format data for the chart
   const chartData = userGrowthData
     ? userGrowthData.map((item) => {
-        const date = new Date(item.date).toLocaleDateString("en-US", {
-          month: "long",
+        const date = new Date(item.date).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "2-digit",
         });
         return {
           month: date,
@@ -67,46 +68,39 @@ export function UserGrowthRateChart({
       })
     : [
         {
-          month: "January",
-          customer: 18,
-          restaurant: 10,
-          driver: 8,
-          customer_care: 2,
+          month: "29/05",
+          customer: 1,
+          restaurant: 1,
+          driver: 1,
+          customer_care: 0,
         },
         {
-          month: "February",
-          customer: 30,
-          restaurant: 15,
-          driver: 12,
-          customer_care: 3,
+          month: "31/05",
+          customer: 0,
+          restaurant: 1,
+          driver: 0,
+          customer_care: 0,
         },
         {
-          month: "March",
-          customer: 25,
-          restaurant: 12,
-          driver: 10,
-          customer_care: 2,
+          month: "06/06",
+          customer: 1,
+          restaurant: 0,
+          driver: 0,
+          customer_care: 0,
         },
         {
-          month: "April",
-          customer: 15,
-          restaurant: 9,
-          driver: 7,
-          customer_care: 1,
+          month: "10/06",
+          customer: 1,
+          restaurant: 0,
+          driver: 0,
+          customer_care: 0,
         },
         {
-          month: "May",
-          customer: 20,
-          restaurant: 13,
+          month: "15/06",
+          customer: 14,
+          restaurant: 8,
           driver: 9,
-          customer_care: 2,
-        },
-        {
-          month: "June",
-          customer: 22,
-          restaurant: 14,
-          driver: 10,
-          customer_care: 3,
+          customer_care: 9,
         },
       ];
 
@@ -136,7 +130,6 @@ export function UserGrowthRateChart({
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              tickFormatter={(value) => value.slice(0, 3)}
             />
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
             <Line

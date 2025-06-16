@@ -29,29 +29,9 @@ interface OrderStatsChartProps {
 }
 
 const chartConfig = {
-  pending: {
-    label: "Pending",
+  total: {
+    label: "Total Orders",
     color: "hsl(var(--chart-1))",
-  },
-  preparing: {
-    label: "Preparing",
-    color: "hsl(var(--chart-2))",
-  },
-  ready_for_pickup: {
-    label: "Ready for Pickup",
-    color: "hsl(var(--chart-3))",
-  },
-  dispatched: {
-    label: "Dispatched",
-    color: "hsl(var(--chart-4))",
-  },
-  en_route: {
-    label: "En Route",
-    color: "hsl(var(--chart-5))",
-  },
-  restaurant_pickup: {
-    label: "Restaurant Pickup",
-    color: "#8b5cf6",
   },
   delivered: {
     label: "Delivered",
@@ -76,37 +56,23 @@ export function OrderStatsChart({
         });
         return {
           date: date,
-          pending: item.pending || 0,
-          preparing: item.preparing || 0,
-          ready_for_pickup: item.ready_for_pickup || 0,
-          en_route: item.en_route || 0,
+          total: item.total || 0,
           delivered: item.delivered || 0,
           cancelled: item.cancelled || 0,
-          dispatched: item.dispatched || 0,
-          restaurant_pickup: item.restaurant_pickup || 0,
-          total: item.total || 0,
         };
       })
     : [
         {
-          date: "May 16",
-          pending: 2,
-          preparing: 1,
-          ready_for_pickup: 1,
-          en_route: 2,
-          delivered: 3,
+          date: "May 28",
+          total: 1,
+          delivered: 1,
           cancelled: 0,
-          total: 9,
         },
         {
-          date: "May 17",
-          pending: 1,
-          preparing: 2,
-          ready_for_pickup: 2,
-          en_route: 1,
-          delivered: 4,
-          cancelled: 1,
-          total: 11,
+          date: "Jun 15",
+          total: 1,
+          delivered: 1,
+          cancelled: 0,
         },
       ];
 
@@ -141,33 +107,8 @@ export function OrderStatsChart({
             />
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
             <Bar
-              dataKey="pending"
-              fill="var(--color-pending)"
-              stackId="orders"
-            />
-            <Bar
-              dataKey="preparing"
-              fill="var(--color-preparing)"
-              stackId="orders"
-            />
-            <Bar
-              dataKey="ready_for_pickup"
-              fill="var(--color-ready_for_pickup)"
-              stackId="orders"
-            />
-            <Bar
-              dataKey="dispatched"
-              fill="var(--color-dispatched)"
-              stackId="orders"
-            />
-            <Bar
-              dataKey="en_route"
-              fill="var(--color-en_route)"
-              stackId="orders"
-            />
-            <Bar
-              dataKey="restaurant_pickup"
-              fill="var(--color-restaurant_pickup)"
+              dataKey="total"
+              fill="var(--color-total)"
               stackId="orders"
             />
             <Bar

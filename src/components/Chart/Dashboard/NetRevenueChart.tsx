@@ -49,8 +49,9 @@ export function NetRevenueChart({
   const chartData =
     netIncomeData && grossIncomeData
       ? netIncomeData.map((item, index) => {
-          const date = new Date(item.date).toLocaleDateString("en-US", {
-            month: "long",
+          const date = new Date(item.date).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
           });
           return {
             month: date,
@@ -59,12 +60,12 @@ export function NetRevenueChart({
           };
         })
       : [
-          { month: "January", net: 186, gross: 220 },
-          { month: "February", net: 305, gross: 350 },
-          { month: "March", net: 237, gross: 270 },
-          { month: "April", net: 73, gross: 120 },
-          { month: "May", net: 209, gross: 250 },
-          { month: "June", net: 214, gross: 260 },
+          { month: "16/05", net: 186, gross: 220 },
+          { month: "17/05", net: 305, gross: 350 },
+          { month: "20/05", net: 237, gross: 270 },
+          { month: "23/05", net: 73, gross: 120 },
+          { month: "28/05", net: 209, gross: 250 },
+          { month: "15/06", net: 214, gross: 260 },
         ];
 
   return (
@@ -93,7 +94,6 @@ export function NetRevenueChart({
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              tickFormatter={(value) => value.slice(0, 3)}
             />
             <ChartTooltip
               cursor={false}

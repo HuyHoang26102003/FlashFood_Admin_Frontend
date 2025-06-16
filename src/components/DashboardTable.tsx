@@ -8,16 +8,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { OrderStats } from "@/types/dashboard.types";
+import { OrderStats, MetricData } from "@/types/dashboard.types";
 
 interface DashboardTableProps {
   orderStats?: OrderStats[];
-  churn_rate?: number;
-  average_delivery_time?: number;
-  average_customer_satisfaction?: number;
-  order_cancellation_rate?: number;
-  order_volume?: number;
-  gross_from_promotion?: string;
+  churn_rate?: MetricData;
+  average_delivery_time?: MetricData;
+  average_customer_satisfaction?: MetricData;
+  order_cancellation_rate?: MetricData;
+  order_volume?: MetricData;
+  gross_from_promotion?: MetricData;
   sold_promotions?: number;
   total_users?: number;
   period_type?: string;
@@ -34,66 +34,71 @@ export function DashboardTable({
   total_users,
   period_type,
 }: DashboardTableProps) {
-  console.log('cehc k average customer satisfaction', average_customer_satisfaction)
   // Create table data based on real metrics when available, or fallback to sample data
   const tableData = [
     {
       metric: "Average Delivery Time",
       value:
-        average_delivery_time !== undefined && average_delivery_time < 1000000
-          ? `${Math.round(average_delivery_time / (60 * 1000))} minutes`
+        average_delivery_time !== undefined && average_delivery_time.metric > 0
+          ? `${Math.round(average_delivery_time.metric / 60)} minutes`
           : "N/A",
-      changePercent: 0.05,
+      changePercent: average_delivery_time?.monthlyChanges ? parseFloat((average_delivery_time.monthlyChanges / 60).toFixed(1)) : 0,
+      changeType: average_delivery_time?.changeType || "real",
       description: "Average time taken for delivery (converted from seconds)",
-      isPositiveChange: false,
+      isPositiveChange: (average_delivery_time?.monthlyChanges || 0) <= 0,
     },
     {
       metric: "Overall Customer Satisfaction",
       value:
-        average_customer_satisfaction !== undefined && average_customer_satisfaction > 0
-          ? `${average_customer_satisfaction.toFixed(1)}/5`
+        average_customer_satisfaction !== undefined && average_customer_satisfaction.metric > 0
+          ? `${average_customer_satisfaction.metric.toFixed(1)}/5`
           : "Not Available",
-      changePercent: -0.02,
+      changePercent: average_customer_satisfaction?.monthlyChanges || 0,
+      changeType: average_customer_satisfaction?.changeType || "real",
       description: "Aggregate rating based on customer feedback",
-      isPositiveChange: false,
+      isPositiveChange: (average_customer_satisfaction?.monthlyChanges || 0) >= 0,
     },
     {
       metric: "Churn Rate",
       value:
-        churn_rate !== undefined ? `${(churn_rate * 100).toFixed(1)}%` : "N/A",
-      changePercent: 0.01,
+        churn_rate !== undefined ? `${(churn_rate.metric * 100).toFixed(1)}%` : "N/A",
+      changePercent: churn_rate?.monthlyChanges ? (churn_rate.monthlyChanges * 100) : 0,
+      changeType: churn_rate?.changeType || "percentage",
       description: "Percentage of users who are not active for 1 month",
-      isPositiveChange: false,
+      isPositiveChange: (churn_rate?.monthlyChanges || 0) <= 0,
     },
     {
       metric: "Order Cancellation Rate",
       value:
         order_cancellation_rate !== undefined
-          ? `${(order_cancellation_rate * 100).toFixed(1)}%`
+          ? `${(order_cancellation_rate.metric * 100).toFixed(1)}%`
           : "N/A",
-      changePercent: -0.03,
+      changePercent: order_cancellation_rate?.monthlyChanges ? (order_cancellation_rate.monthlyChanges * 100) : 0,
+      changeType: order_cancellation_rate?.changeType || "percentage",
       description: "Percentage of orders canceled before delivery",
-      isPositiveChange: true,
+      isPositiveChange: (order_cancellation_rate?.monthlyChanges || 0) <= 0,
     },
     {
       metric: "Order Volume",
       value:
         order_volume !== undefined
-          ? `${order_volume.toLocaleString()} Orders`
+          ? `${order_volume.metric.toLocaleString()} Orders`
           : "N/A",
-      changePercent: 0.2,
+      changePercent: order_volume?.monthlyChanges || 0,
+      changeType: order_volume?.changeType || "real",
       description: "Total number of orders placed within a specific timeframe",
-      isPositiveChange: true,
+      isPositiveChange: (order_volume?.monthlyChanges || 0) >= 0,
     },
     {
       metric: "Gross from Promotions",
       value:
         gross_from_promotion !== undefined
-          ? `$${parseFloat(gross_from_promotion).toFixed(2)}`
+          ? `$${gross_from_promotion.metric.toFixed(2)}`
           : "N/A",
-      changePercent: 0.15,
+      changePercent: gross_from_promotion?.monthlyChanges || 0,
+      changeType: gross_from_promotion?.changeType || "real",
       description: "Total revenue generated from promotional campaigns",
-      isPositiveChange: true,
+      isPositiveChange: (gross_from_promotion?.monthlyChanges || 0) >= 0,
     },
     {
       metric: "Sold Promotions",
@@ -102,6 +107,7 @@ export function DashboardTable({
           ? `${sold_promotions.toLocaleString()} Promotions`
           : "N/A",
       changePercent: 0.08,
+      changeType: "real",
       description: "Number of promotional offers successfully sold",
       isPositiveChange: true,
     },
@@ -112,6 +118,7 @@ export function DashboardTable({
           ? `${total_users.toLocaleString()} Users`
           : "N/A",
       changePercent: 0.12,
+      changeType: "real",
       description: "Total number of registered users across all categories",
       isPositiveChange: true,
     },
@@ -127,7 +134,7 @@ export function DashboardTable({
         <TableRow className="font-semibold">
           <TableHead>Metric</TableHead>
           <TableHead>Value</TableHead>
-          <TableHead>Change (%)</TableHead>
+          <TableHead>Monthly Change</TableHead>
           <TableHead>Description</TableHead>
         </TableRow>
       </TableHeader>
@@ -142,9 +149,9 @@ export function DashboardTable({
               className={`${
                 item.isPositiveChange ? "text-success-700" : "text-danger-500"
               }`}
-            >{`${item.changePercent > 0 ? "+" : ""}${(
-              item.changePercent * 100
-            ).toFixed(2)}%`}</TableCell>
+            >{`${item.changePercent > 0 ? "+" : ""}${Number(
+              item.changePercent
+            ).toFixed(2)}${item.changeType === "percentage" ? "%" : ""}`}</TableCell>
             <TableCell className="text-neutral-500">
               {item.description}
             </TableCell>
