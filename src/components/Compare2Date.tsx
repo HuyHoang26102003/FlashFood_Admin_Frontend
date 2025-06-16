@@ -15,7 +15,7 @@ import { formatDate } from '@/utils/functions/formatDate';
 
 const Compare2Date = ({ date1, setDate1, date2, setDate2 }: { date1: Date | undefined, setDate1: (date1: Date | undefined) => void, date2: Date | undefined, setDate2: (date2: Date | undefined) => void }) => {
     return (
-        <div className="card hover:duration-300 hover:bg-slate-100 jb gap-3 max-md:hidden" >
+        <div className="card hover:duration-300 hover:bg-slate-100 jb gap-3 my-4 max-md:hidden" >
             <div className="bg-primary-100 cc p-2 rounded-lg">
                 <IoCalendarOutline className="text-primary-500" />
             </div>

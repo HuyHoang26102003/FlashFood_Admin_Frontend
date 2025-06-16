@@ -1,12 +1,20 @@
 export interface IncomeData {
   date: string;
+  order_count: number;
   total_amount: number;
 }
 
 export interface OrderStats {
   date: string;
+  total: number;
+  pending: number;
+  en_route: number;
   cancelled: number;
-  completed: number;
+  delivered: number;
+  preparing: number;
+  dispatched: number;
+  ready_for_pickup: number;
+  restaurant_pickup: number;
 }
 
 export interface UserGrowthData {

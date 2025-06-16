@@ -34,24 +34,25 @@ export function DashboardTable({
   total_users,
   period_type,
 }: DashboardTableProps) {
+  console.log('cehc k average customer satisfaction', average_customer_satisfaction)
   // Create table data based on real metrics when available, or fallback to sample data
   const tableData = [
     {
       metric: "Average Delivery Time",
       value:
-        average_delivery_time !== undefined && average_delivery_time !== 2147483647
-          ? `${average_delivery_time} minutes`
+        average_delivery_time !== undefined && average_delivery_time < 1000000
+          ? `${Math.round(average_delivery_time / (60 * 1000))} minutes`
           : "N/A",
       changePercent: 0.05,
-      description: "Average time taken for delivery",
+      description: "Average time taken for delivery (converted from seconds)",
       isPositiveChange: false,
     },
     {
       metric: "Overall Customer Satisfaction",
       value:
         average_customer_satisfaction !== undefined && average_customer_satisfaction > 0
-          ? `${average_customer_satisfaction}/5`
-          : "N/A",
+          ? `${average_customer_satisfaction.toFixed(1)}/5`
+          : "Not Available",
       changePercent: -0.02,
       description: "Aggregate rating based on customer feedback",
       isPositiveChange: false,

@@ -2,8 +2,10 @@ import axios from "axios";
 import { useAdminStore } from "@/stores/adminStore";
 // import { API_BASE_URL } from '@/utils/constants/api';
 
+const BACKEND_URL='http://192.168.1.54'
+
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:1310",
+  baseURL: `${BACKEND_URL}:1310`,
   headers: {
     "Content-Type": "application/json",
   },

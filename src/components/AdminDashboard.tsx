@@ -3,12 +3,13 @@ import React, { useState } from "react";
 import DashboardListCards from "@/components/Card/DashboardListCards";
 import { NetRevenueChart } from "@/components/Chart/Dashboard/NetRevenueChart";
 import { UserGrowthRateChart } from "@/components/Chart/Dashboard/UserGrowthRateChart";
+import { OrderStatsChart } from "@/components/Chart/Dashboard/OrderStatsChart";
 import { DashboardTable } from "@/components/DashboardTable";
 import PageTitle from "@/components/PageTitle";
 import { LiveStatusIndicator } from "@/components/LiveStatusIndicator";
 import { IDashboardListCards } from "@/utils/sample/DashboardListCards";
 import { CardCategory } from "@/utils/constants/card";
-import { FaUsers, FaShoppingCart, FaMoneyBillWave, FaGift, FaChartLine, FaClock } from "react-icons/fa";
+import { FaUsers, FaShoppingCart, FaGift, FaChartLine } from "react-icons/fa";
 import { useLiveDashboardData } from "@/hooks/useLiveDashboardData";
 
 const AdminDashboard = () => {
@@ -171,6 +172,15 @@ const AdminDashboard = () => {
         <div className="card lg:flex-1 fc">
           <UserGrowthRateChart
             userGrowthData={dashboardData?.user_growth_rate}
+            lastUpdated={lastUpdated}
+          />
+        </div>
+      </div>
+
+      <div className="py-6">
+        <div className="card fc">
+          <OrderStatsChart
+            orderStatsData={dashboardData?.order_stats}
             lastUpdated={lastUpdated}
           />
         </div>
