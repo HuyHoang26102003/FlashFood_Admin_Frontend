@@ -9,6 +9,8 @@ import {
   Video,
   MoreVertical,
   Send,
+  Search,
+  X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,6 +30,10 @@ import {
 } from "@/types/chat";
 import { formatDateToRelativeTime } from "@/utils/functions/formatRelativeTime";
 import { limitCharacters } from "@/utils/functions/stringFunc";
+import {
+  userSearchService,
+  UserSearchResult,
+} from "@/services/user/userSearchService";
 
 interface Avatar {
   key: string;
@@ -94,7 +100,13 @@ export default function ChatPage() {
       timestamp: string;
     }[]
   >([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   // const hasFetchedHistory = useRef<{ [key: string]: boolean }>({});
 
   const getAccessToken = () => {
@@ -149,6 +161,62 @@ export default function ChatPage() {
       }
     } catch (error) {
       console.error("Error fetching chat history:", error);
+    }
+  };
+
+  const handleSearch = async (query: string) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const response = await userSearchService.searchUsers(query);
+        setSearchResults(response.data.results);
+        setShowSearchResults(true);
+      } catch (error) {
+        console.error("Error searching users:", error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  };
+
+  const handleStartChat = async (user: UserSearchResult) => {
+    if (!socket) return;
+
+    try {
+      console.log("Starting chat with user:", user.id);
+      const chatResponse = await chatSocket.startChat(
+        socket,
+        user.id,
+        "SUPPORT"
+      );
+      console.log("Chat started:", chatResponse);
+
+      // Set the new room as selected
+      setSelectedRoomId(chatResponse.dbRoomId);
+
+      // Clear search
+      setSearchQuery("");
+      setSearchResults([]);
+      setShowSearchResults(false);
+
+      // Fetch chat history for the new room
+      await fetchChatHistory(socket, chatResponse.dbRoomId);
+
+      // Refresh all chats to show the new chat
+      await fetchAllChats(socket);
+    } catch (error) {
+      console.error("Error starting chat:", error);
     }
   };
 
@@ -249,6 +317,32 @@ export default function ChatPage() {
       fetchChatHistory(socket, selectedRoomId);
     }
   }, [selectedRoomId, socket]);
+
+  // Cleanup search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handle click outside to close search results
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const getSenderName = (message: ChatMessage) => {
     if (message.customerSender) {
@@ -415,7 +509,97 @@ export default function ChatPage() {
   return (
     <div className="flex overflow-hidden  py-4">
       <div className="w-1/3  border-r border-gray-200 pr-4 overflow-y-auto">
-        <Input placeholder="Search" className="mb-4 bg-white" />
+        <div className="relative mb-4" ref={searchContainerRef}>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search users to start chat..."
+              className="pl-10 pr-10 bg-white focus-visible:ring-0"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                handleSearch(e.target.value);
+              }}
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSearchResults([]);
+                  setShowSearchResults(false);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* Search Results Dropdown */}
+          {showSearchResults && (
+            <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+              {isSearching ? (
+                <div className="p-3 text-center text-gray-500">
+                  <div className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                  <span className="ml-2">Searching...</span>
+                </div>
+              ) : searchResults.length > 0 ? (
+                searchResults.map((user) => (
+                  <div
+                    key={user.id}
+                    className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    onClick={() => handleStartChat(user)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={user.avatar?.url}
+                          alt={`${user.first_name || ""} ${
+                            user.last_name || ""
+                          }`}
+                        />
+                        <AvatarFallback className="text-xs">
+                          {(user.first_name?.[0] || "") +
+                            (user.last_name?.[0] || "U")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">
+                          {user.first_name || ""} {user.last_name || ""}
+                          {!user.first_name &&
+                            !user.last_name &&
+                            (user.restaurant_name ? (
+                              <span className="text-gray-500">
+                                {user.restaurant_name}
+                              </span>
+                            ) : (
+                              <span className="text-gray-500">
+                                Unknown User
+                              </span>
+                            ))}
+                        </div>
+                        <div className="text-xs text-gray-500 capitalize">
+                          {user.type.replace("_", " ")}
+                        </div>
+                        {user.user_email && (
+                          <div className="text-xs text-gray-400">
+                            {user.user_email}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-3 text-center text-gray-500 text-sm">
+                  No users found
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div className="flex-col mb-4 bg-white rounded-lg shadow-md p-4">
           <h2 className="text-lg font-semibold mb-2 bg-white">Ongoing chats</h2>
           <div className="space-y-2">
@@ -442,14 +626,18 @@ export default function ChatPage() {
                       {getParticipantName(chat)}
                     </span>
                     <span className="text-xs text-gray-400">
-                      {formatDateToRelativeTime(chat.lastMessage.timestamp)}
+                      {chat.lastMessage
+                        ? formatDateToRelativeTime(chat.lastMessage.timestamp)
+                        : "No messages"}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-xs leading-3 text-gray-600">
-                      {limitCharacters(chat.lastMessage.content, 16)}
+                      {chat.lastMessage
+                        ? limitCharacters(chat.lastMessage.content, 16)
+                        : "No messages yet"}
                     </span>
-                    {chat.lastMessage.readBy.length === 1 && (
+                    {chat.lastMessage?.readBy?.length === 1 && (
                       <Badge className="bg-danger-500 h-5 text-white">1</Badge>
                     )}
                   </div>
@@ -486,14 +674,18 @@ export default function ChatPage() {
                       {getParticipantName(chat)}
                     </span>
                     <span className="text-sm text-gray-500">
-                      {formatDateToRelativeTime(chat.lastMessage.timestamp)}
+                      {chat.lastMessage
+                        ? formatDateToRelativeTime(chat.lastMessage.timestamp)
+                        : "No messages"}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">
-                      {chat.lastMessage.content}
+                      {chat.lastMessage
+                        ? chat.lastMessage.content
+                        : "No messages yet"}
                     </span>
-                    {chat.lastMessage.readBy.length === 1 && (
+                    {chat.lastMessage?.readBy?.length === 1 && (
                       <Badge className="bg-danger-500 h-4 text-white">1</Badge>
                     )}
                   </div>
@@ -505,7 +697,7 @@ export default function ChatPage() {
       </div>
 
       <div className="flex-1 flex flex-col bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="border-b border-gray-200 p-4 py-2 bg-violet-300 flex items-center justify-between">
+        <div className="border-b border-gray-200 p-4 py-2  flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Avatar>
               <AvatarImage
@@ -535,7 +727,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <div className="max-h-[calc(100vh-14rem)] p-4 overflow-y-auto bg-red-500">
+        <div className="max-h-[calc(100vh-14rem)] p-4 overflow-y-auto ">
           {chatHistory.map((msg) => (
             <div
               key={msg.id}

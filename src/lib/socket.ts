@@ -120,6 +120,47 @@ export const chatSocket = {
       });
     });
   },
+
+  startChat: (socket: ReturnType<typeof io>, withUserId: string, type: string) => {
+    return new Promise<{
+      chatId: string;
+      withUser: string;
+      type: string;
+      dbRoomId: string;
+    }>((resolve, reject) => {
+      console.log("Emitting startChat event", { withUserId, type });
+
+      if (!socket.connected) {
+        console.log("Socket not connected, attempting to connect...");
+        socket.connect();
+      }
+
+      // Listen for chatStarted event
+      const handleChatStarted = (response: {
+        chatId: string;
+        withUser: string;
+        type: string;
+        dbRoomId: string;
+      }) => {
+        console.log("Received chatStarted:", response);
+        socket.off("chatStarted", handleChatStarted);
+        resolve(response);
+      };
+
+      socket.on("chatStarted", handleChatStarted);
+
+      // Emit startChat event
+      console.log('check whate here', { withUserId, type })
+      socket.emit("startChat", { withUserId, type }, (error: string) => {
+        if (error) {
+          console.error("Error in startChat:", error);
+          socket.off("chatStarted", handleChatStarted);
+          reject(new Error(error));
+        }
+      });
+    });
+  },
+
   sendMessage: (
     socket: ReturnType<typeof io>,
     roomId: string,

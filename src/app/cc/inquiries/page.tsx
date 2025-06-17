@@ -407,8 +407,8 @@ const Page = () => {
               </h2>
             </div>
 
-            {selectedInquiry && (
-              <Card>
+          {selectedInquiry && (
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className={`w-4 h-4 rounded-full ${getStatusColor(status)}`}></div>
@@ -420,7 +420,7 @@ const Page = () => {
                   <div className="text-sm text-gray-500">
                     Created: {formatEpochToRelativeTime(selectedInquiry.created_at)} ago
                   </div>
-                </CardHeader>
+              </CardHeader>
 
                 <CardContent className="space-y-6">
                   {/* Basic Information */}
@@ -429,7 +429,7 @@ const Page = () => {
                     <div className="col-span-2 space-y-6">
                       <h3 className="font-medium">Basic Information</h3>
                       <div className="grid grid-cols-2 gap-6">
-                        <div>
+                <div>
                           <label className="text-sm font-medium">Status</label>
                           <Select value={status} onValueChange={(value) => setStatus(value as ENUM_INQUIRY_STATUS)}>
                             <SelectTrigger className="w-full">
@@ -443,9 +443,9 @@ const Page = () => {
                               <SelectItem value={ENUM_INQUIRY_STATUS.ESCALATE}>Escalate</SelectItem>
                             </SelectContent>
                           </Select>
-                        </div>
+                </div>
 
-                        <div>
+                <div>
                           <label className="text-sm font-medium">Priority</label>
                           <Select value={priority} onValueChange={(value) => setPriority(value as ENUM_INQUIRY_PRIORITY)}>
                             <SelectTrigger className="w-full">
@@ -458,9 +458,9 @@ const Page = () => {
                               <SelectItem value={ENUM_INQUIRY_PRIORITY.LOW}>Low</SelectItem>
                             </SelectContent>
                           </Select>
-                        </div>
+                </div>
 
-                        <div>
+                <div>
                           <label className="text-sm font-medium">Issue Type</label>
                           <Select value={issueType} onValueChange={setIssueType}>
                             <SelectTrigger className="w-full">
@@ -476,9 +476,9 @@ const Page = () => {
                               <SelectItem value="OTHER">Other</SelectItem>
                             </SelectContent>
                           </Select>
-                        </div>
+                </div>
 
-                        <div>
+                <div>
                           <label className="text-sm font-medium">Resolution Type</label>
                           <Select value={resolutionType} onValueChange={setResolutionType}>
                             <SelectTrigger className="w-full">
@@ -495,7 +495,7 @@ const Page = () => {
                           </Select>
                         </div>
                       </div>
-                    </div>
+                </div>
 
                     {/* Right side - Customer Information */}
                     <div className="space-y-4">
@@ -511,31 +511,31 @@ const Page = () => {
                             {selectedInquiry.customer.first_name.slice(0, 1)}
                           </AvatarFallback>
                         </Avatar>
-                        <div>
+                <div>
                           <div className="font-medium">
                             {selectedInquiry.customer.last_name} {selectedInquiry.customer.first_name}
                           </div>
-                        </div>
-                      </div>
+                </div>
+                </div>
 
                       <div className="space-y-2">
                         <h4 className="text-sm font-medium">Timeline</h4>
                         <div className="text-sm space-y-1">
                           {selectedInquiry.first_response_at && (
-                            <div>
+                <div>
                               First Response: {formatEpochToRelativeTime(selectedInquiry.first_response_at)} ago
-                            </div>
+                </div>
                           )}
                           {selectedInquiry.last_response_at && (
-                            <div>
+                <div>
                               Last Response: {formatEpochToRelativeTime(selectedInquiry.last_response_at)} ago
-                            </div>
+                </div>
                           )}
-                          {selectedInquiry.resolved_at && (
-                            <div>
+                {selectedInquiry.resolved_at && (
+                  <div>
                               Resolved: {formatEpochToRelativeTime(selectedInquiry.resolved_at)} ago
-                            </div>
-                          )}
+                  </div>
+                )}
                         </div>
                       </div>
                     </div>
@@ -575,10 +575,10 @@ const Page = () => {
                     <Button onClick={handleSave} disabled={isSubmitting}>
                       {isSubmitting ? "Saving..." : "Save Changes"}
                     </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                    </div>
+                  </CardContent>
+            </Card>
+          )}
           </div>
         </DialogContent>
       </Dialog>

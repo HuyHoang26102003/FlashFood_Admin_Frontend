@@ -61,7 +61,9 @@ const MainNav = () => {
               variant="default"
             ></Badge>
           </div>
-          <div className="w-10 aspect-square rounded-xl relative cc bg-primary-100 shadow-md shadow-primary-300 hover-sd">
+          <div 
+            onClick={() => router.push("/chats")}
+                    className="w-10 aspect-square rounded-xl relative cc bg-primary-100 shadow-md shadow-primary-300 hover-sd">
             <MessageCircle className="text-primary-500" />
             <Badge
               className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-primary-500"
