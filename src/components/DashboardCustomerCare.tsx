@@ -26,6 +26,7 @@ import { formatEpochToRelativeTime } from "@/utils/functions/formatRelativeTime"
 import { ArrowLeft } from "lucide-react";
 import colors from "@/theme/colors";
 import { inquiryService } from "@/services/customer-cares/inquiryService";
+import axiosInstance from "@/lib/axios";
 
 const DashboardCustomerCare = () => {
   const customerCareZ = useCustomerCareStore((state) => state.user);
@@ -180,7 +181,10 @@ const ListInquiries = ({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+        <Select 
+          value={priorityFilter} 
+          onValueChange={(value) => setPriorityFilter(value as ENUM_INQUIRY_PRIORITY | "ALL")}
+        >
           <SelectTrigger className="w-40 bg-white border">
             <SelectValue placeholder="Select Priority" />
           </SelectTrigger>
@@ -192,7 +196,10 @@ const ListInquiries = ({
             <SelectItem value={ENUM_INQUIRY_PRIORITY.LOW}>Low</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select 
+          value={statusFilter} 
+          onValueChange={(value) => setStatusFilter(value as ENUM_INQUIRY_STATUS | "ALL")}
+        >
           <SelectTrigger className="w-32 bg-white border">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -379,29 +386,34 @@ const InquiryDetails = ({
       console.log("check plz fill all fields");
       return;
     }
+    
     setIsLoading(true);
     setIsSubmitting(true);
+    
+    const currentTime = Math.floor(Date.now() / 1000);
+    
     const requestBody = {
-      last_response_at: Math.floor(Date.now() / 1000),
-      resolved_at:
-        status === ENUM_INQUIRY_STATUS.RESOLVED
-          ? Math.floor(Date.now() / 1000)
-          : undefined,
-      resolution_notes: resolutionNotes,
       status,
+      priority,
       issue_type: issueType,
-      resolution_type:
-        status === ENUM_INQUIRY_STATUS.RESOLVED ? resolutionType : undefined,
+      resolution_type: status === ENUM_INQUIRY_STATUS.RESOLVED ? resolutionType : undefined,
+      resolution_notes: resolutionNotes,
+      last_response_at: currentTime,
+      resolved_at: status === ENUM_INQUIRY_STATUS.RESOLVED ? currentTime : undefined,
+      first_response_at: inquiry.first_response_at || currentTime,
     };
-    console.log("cehck req", requestBody, "check order", inquiry?.order?.id);
+
+    console.log("check req", requestBody, "check inquiry id", inquiry?.id);
+    
     try {
-      // Here you would call your API to update the inquiry
-      const response = await inquiryService.updateInquiry(
-        inquiry?.id,
+      const response = await axiosInstance.patch(
+        `customer-care-inquiries/${inquiry.id}`,
         requestBody
       );
+      
       console.log("Saving changes...", response, response.data);
-      if (response.EC === 0) {
+      
+      if (response.data.EC === 0) {
         fetchInquiries();
         onBack();
       }

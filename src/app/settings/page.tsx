@@ -27,14 +27,12 @@ enum Enum_Tabs {
   SEEDING = "Seeding",
   PROFILE = "Profile",
   SECURITY = "Security",
-  LOGOUT = "Logout",
 }
 
 const tabs: Enum_Tabs[] = [
   Enum_Tabs.SEEDING,
   Enum_Tabs.PROFILE,
   Enum_Tabs.SECURITY,
-  Enum_Tabs.LOGOUT,
 ];
 
 type TypeSeedingAccordionItem = {
@@ -481,15 +479,7 @@ const ConditionalTabContentRender = ({
 const Page = () => {
   const customerCareZ = useCustomerCareStore((state) => state.user);
   const [selectedTab, setSelectedTab] = useState<Enum_Tabs>(tabs[0]);
-  const router = useRouter();
 
-  useEffect(() => {
-    if (customerCareZ?.logged_in_as === "CUSTOMER_CARE_REPRESENTATIVE") {
-      setSelectedTab(Enum_Tabs.LOGOUT);
-    }
-  }, [customerCareZ]);
-
-  const logout = useCustomerCareStore((state) => state.logout);
 
   return (
     <div className="w-full  flex gap-4 justify-between">
@@ -498,10 +488,6 @@ const Page = () => {
           ?.map((item) => (
             <Button
               onClick={() => {
-                if (item === Enum_Tabs.LOGOUT) {
-                  logout();
-                  router.push("/");
-                }
                 setSelectedTab(item);
               }}
               key={item}

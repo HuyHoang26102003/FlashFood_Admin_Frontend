@@ -1,7 +1,7 @@
-**1 DONE 2/3 (NOT FINISH generating avg satisfaction rate)
+**1 DONE 3/3 (FINISHED generating avg satisfaction rate)
 fix churn rate, promotion sold, average satisfaction rate (generate rating review)
 
-**2 
+**2  DONE
 generate customercare inquiries
 
 **3 DONE
@@ -13,7 +13,7 @@ escalte customercare inquiries to admin
 **5 
 chat cc - driver - customer - restaurant
 
-**6
+**6 DONE
 implement admin, customercare details (first_name, last_name, avatar) global state => edit profile (/settings)
 
 **7 
