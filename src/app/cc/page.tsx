@@ -25,6 +25,15 @@ import { ArrowUpDown, Eye, MoreHorizontal, Power, Trash } from "lucide-react";
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import { Spinner } from "@/components/Spinner";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 
 interface CustomerCare {
   id: string;
@@ -52,6 +61,9 @@ const Page = () => {
     banned: 0,
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const handleStatusChange = async (id: string, shouldBan: boolean) => {
     try {
@@ -245,88 +257,49 @@ const Page = () => {
   const fetchCustomerCare = async () => {
     setIsLoading(true);
     try {
-      const result = await customerCareService.findAllPaginated();
-      console.log("Result from API:", result);
-
-      if (result?.EC === 0 && result?.data?.items) {
-        const items = result.data.items.map((item: any) => ({
-          id: item.id,
-          first_name: item.first_name || "",
-          last_name: item.last_name || "",
-          active_point: item.active_point || 0,
-          avatar: item.avatar || null,
-          is_assigned: item.is_assigned || false,
-          available_for_work: item.available_for_work || false,
-          is_banned: item.is_banned || false,
-          address: item.address || "",
-          contact_email: item.contact_email || [],
-        }));
-
-        setCustomerCare(items);
-
-        // Calculate statistics
-        const totalCount = items.length;
-        const activeCount = items.filter(
-          (cc: CustomerCare) => cc.available_for_work && !cc.is_banned
-        ).length;
-        const bannedCount = items.filter(
-          (cc: CustomerCare) => cc.is_banned
-        ).length;
-
-        setStats({
-          total: totalCount,
-          active: activeCount,
-          banned: bannedCount,
-        });
+      const response = await customerCareService.findAllPaginated(10, currentPage);
+      const { totalItems: items, totalPages: pages, items: ccItems } = response.data;
+      if (response.EC === 0) {
+        setCustomerCare(ccItems);
+        setTotalItems(items);
+        setTotalPages(pages);
       } else {
-        console.error("Invalid response format:", result);
+        console.error("API error:", response.EM);
         setCustomerCare([]);
-        setStats({
-          total: 0,
-          active: 0,
-          banned: 0,
-        });
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching customer care:", error);
       setCustomerCare([]);
-      setStats({
-        total: 0,
-        active: 0,
-        banned: 0,
-      });
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   useEffect(() => {
+    setIsLoading(true);
     fetchCustomerCare();
-  }, []);
+  }, [currentPage]);
 
-  // const handleGenerateCustomerCare = async () => {
-  //   setIsLoading(true);
-  //   try {
-  //     const result = await customerCareService.createCustomerCareRepresentative();
-  //     console.log("Generate result:", result);
+  useEffect(() => {
+    const totalCount = customerCare.length;
+    const activeCount = customerCare.filter((cc) => !cc.is_banned && cc.available_for_work).length;
+    const bannedCount = customerCare.filter((cc) => cc.is_banned).length;
 
-  //     if (result && result.EC === 0) {
-  //       await fetchCustomerCare();
-  //     } else {
-  //       console.error("Failed to generate customer care rep:", result);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error generating customer care rep:", error);
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
+    setStats({
+      total: totalCount,
+      active: activeCount,
+      banned: bannedCount,
+    });
+  }, [customerCare]);
 
   const table = useReactTable({
     data: customerCare,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
 
   return (
     <div className="p-4">
@@ -335,19 +308,19 @@ const Page = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-2">Total Representatives</h2>
-          <div className="text-3xl font-bold text-blue-600">{stats.total}</div>
+          <h2 className="text-lg font-semibold mb-2">Total Customer Care</h2>
+          <div className="text-3xl font-bold text-blue-600">{totalItems}</div>
         </div>
 
         <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-2">Active Representatives</h2>
+          <h2 className="text-lg font-semibold mb-2">Active Customer Care</h2>
           <div className="text-3xl font-bold text-green-600">
             {stats.active}
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-2">Banned Representatives</h2>
+          <h2 className="text-lg font-semibold mb-2">Banned Customer Care</h2>
           <div className="text-3xl font-bold text-red-600">{stats.banned}</div>
         </div>
       </div>
@@ -357,9 +330,6 @@ const Page = () => {
           <h2 className="text-xl font-semibold mb-4">
             Customer Care Representatives
           </h2>
-          {/* <Button onClick={handleGenerateCustomerCare}>
-            Generate Customer Care Representative
-          </Button> */}
         </div>
         <div className="rounded-md border">
           <Table>
@@ -406,6 +376,106 @@ const Page = () => {
             </TableBody>
           </Table>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                onClick={() => handlePageChange(currentPage - 1)}
+                className={
+                  currentPage === 1 ? "pointer-events-none opacity-50" : ""
+                }
+              />
+            </PaginationItem>
+            {(() => {
+              const pages = [];
+              if (totalPages <= 4) {
+                // If total pages is 4 or less, show all pages
+                for (let i = 1; i <= totalPages; i++) {
+                  pages.push(
+                    <PaginationItem key={i}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(i)}
+                        isActive={currentPage === i}
+                      >
+                        {i}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                }
+              } else {
+                // Always show first page
+                pages.push(
+                  <PaginationItem key={1}>
+                    <PaginationLink
+                      onClick={() => handlePageChange(1)}
+                      isActive={currentPage === 1}
+                    >
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+
+                // Show dots if current page is more than 2
+                if (currentPage > 2) {
+                  pages.push(
+                    <PaginationItem key="ellipsis1">
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  );
+                }
+
+                // Show current page if it's not first or last
+                if (currentPage !== 1 && currentPage !== totalPages) {
+                  pages.push(
+                    <PaginationItem key={currentPage}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(currentPage)}
+                        isActive={true}
+                      >
+                        {currentPage}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                }
+
+                // Show dots if current page is less than totalPages - 1
+                if (currentPage < totalPages - 1) {
+                  pages.push(
+                    <PaginationItem key="ellipsis2">
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  );
+                }
+
+                // Always show last page
+                pages.push(
+                  <PaginationItem key={totalPages}>
+                    <PaginationLink
+                      onClick={() => handlePageChange(totalPages)}
+                      isActive={currentPage === totalPages}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              }
+              return pages;
+            })()}
+            <PaginationItem>
+              <PaginationNext
+                onClick={() => handlePageChange(currentPage + 1)}
+                className={
+                  currentPage === totalPages
+                    ? "pointer-events-none opacity-50"
+                    : ""
+                }
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
       </div>
     </div>
   );

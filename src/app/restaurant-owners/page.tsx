@@ -24,7 +24,6 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import {
-  Restaurant,
   restaurantService,
 } from "@/services/companion-admin/restaurantService";
 import { Spinner } from "@/components/Spinner";
@@ -52,32 +51,39 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
+  PaginationEllipsis,
 } from "@/components/ui/pagination";
 
-interface ItemRestaurantBackend {
+interface RestaurantData {
   id: string;
   restaurant_name: string;
+  owner_id: string;
+  owner_name: string;
+  description: string | null;
+  contact_email: {
+    email: string;
+    title: string;
+    is_default: boolean;
+  }[];
+  contact_phone: {
+    title: string;
+    number: string;
+    is_default: boolean;
+  }[];
+  avatar?: Avatar;
   status: {
-    is_active?: boolean;
-    is_banned?: boolean;
+    is_open: boolean;
+    is_active: boolean;
+    is_accepted_orders: boolean;
   };
-  address: {
-    nationality: string;
-    city: string;
-    street: string;
+  opening_hours: {
+    [key: string]: {
+      from: number;
+      to: number;
+    };
   };
-  avatar?: Avatar;
-}
-
-interface Restaurant {
-  id: string;
-  restaurant_name: string;
-  address: string;
-  cuisine: string;
-  isActive: boolean;
+  total_orders: number;
   is_banned: boolean;
-  rating: number | undefined;
-  avatar?: Avatar;
 }
 
 interface MenuItem {
@@ -116,7 +122,7 @@ interface MenuItem {
 }
 
 const Page = () => {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [restaurants, setRestaurants] = useState<RestaurantData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
@@ -124,7 +130,7 @@ const Page = () => {
     ban: 0,
   });
   const [selectedRestaurant, setSelectedRestaurant] =
-    useState<Restaurant | null>(null);
+    useState<RestaurantData | null>(null);
   const [isMenuItemsDialogOpen, setIsMenuItemsDialogOpen] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isMenuItemsLoading, setIsMenuItemsLoading] = useState(false);
@@ -142,7 +148,14 @@ const Page = () => {
         setRestaurants((prevRestaurants) =>
           prevRestaurants.map((restaurant) =>
             restaurant.id === id
-              ? { ...restaurant, is_banned: shouldBan, isActive: !shouldBan }
+              ? {
+                  ...restaurant,
+                  is_banned: shouldBan,
+                  status: {
+                    ...restaurant.status,
+                    is_active: !shouldBan,
+                  },
+                }
               : restaurant
           )
         );
@@ -163,7 +176,7 @@ const Page = () => {
     }
   };
 
-  const columns: ColumnDef<Restaurant>[] = [
+  const columns: ColumnDef<RestaurantData>[] = [
     {
       id: "select",
       header: ({ table }) => (
@@ -187,7 +200,7 @@ const Page = () => {
       enableHiding: false,
     },
     {
-      accessorKey: "name",
+      accessorKey: "restaurant_name",
       header: ({ column }) => (
         <Button
           className="text-left pl-0"
@@ -195,6 +208,7 @@ const Page = () => {
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Restaurant Name
+          <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
       cell: ({ row }) => {
@@ -214,35 +228,83 @@ const Page = () => {
       },
     },
     {
-      accessorKey: "address",
+      accessorKey: "owner_name",
       header: ({ column }) => (
         <Button
-          className="text-center pl-0"
+          className="text-center"
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Adress
+          Owner Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
       cell: ({ row }) => {
-        if (!row) {
-          return <div className="text-center">-</div>;
-        }
-
-        const address = row.getValue("address");
-        if (!address) {
-          return <div className="text-center">-</div>;
-        }
-
-        const addressStr = `${(address as { street: string }).street}, ${
-          (address as { city: string }).city
-        } ${(address as { nationality: string }).nationality}`;
+        const restaurant = row.original;
+        return <div className="text-left">{restaurant.owner_name}</div>;
+      },
+    },
+    {
+      accessorKey: "contact",
+      header: "Contact Info",
+      cell: ({ row }) => {
+        const restaurant = row.original;
         return (
-          <div className="text-left">
-            {addressStr.length > 20
-              ? `${addressStr.slice(0, 20)}...`
-              : addressStr}
+          <div className="text-left space-y-1">
+            <div className="text-sm">
+              {restaurant.contact_email?.[0]?.email || "No email"}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {restaurant.contact_phone?.[0]?.number || "No phone"}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "total_orders",
+      header: ({ column }) => (
+        <Button
+          className="text-center"
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Total Orders
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const restaurant = row.original;
+        return (
+          <div className="text-center font-medium">
+            {restaurant.total_orders || 0}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "opening_hours",
+      header: "Opening Hours",
+      cell: ({ row }) => {
+        const restaurant = row.original;
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+        const hours = restaurant.opening_hours?.[today];
+        
+        const formatTime = (time: number) => {
+          const hour = Math.floor(time / 100);
+          const minute = time % 100;
+          return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        };
+
+        return (
+          <div className="text-left text-sm">
+            {hours ? (
+              <span>
+                {formatTime(hours.from)} - {formatTime(hours.to)}
+              </span>
+            ) : (
+              "Not available"
+            )}
           </div>
         );
       },
@@ -263,16 +325,16 @@ const Page = () => {
               ${
                 restaurant.is_banned
                   ? "bg-red-100 text-red-800"
-                  : restaurant.isActive
+                  : restaurant.status?.is_open
                   ? "bg-green-100 text-green-800"
                   : "bg-yellow-100 text-yellow-800"
               }`}
             >
               {restaurant.is_banned
                 ? "Banned"
-                : restaurant.isActive
-                ? "Active"
-                : "Inactive"}
+                : restaurant.status?.is_open
+                ? "Open"
+                : "Closed"}
             </span>
           </div>
         );
@@ -367,40 +429,10 @@ const Page = () => {
   };
 
   const fetchRestaurants = async () => {
-    const result = restaurantService.findAllPaginated();
+    const result = restaurantService.findAllPaginated(10, currentPage);
     result
       .then((res) => {
-        const responseData = res.data;
-        console.log(
-          "check what here",
-          responseData.items.map((item: ItemRestaurantBackend) => ({
-            id: item.id,
-            name: item.restaurant_name,
-            address: `${item.address.street} ${item.address.city} ${item.address.nationality}`,
-            cuisine: "",
-            isActive: item.status.is_active,
-            is_banned: item.status.is_banned,
-            rating: undefined,
-            avatar: item?.avatar,
-          }))
-        );
-        const buildData = responseData.items.map(
-          (item: ItemRestaurantBackend) => ({
-            id: item.id,
-            name: item.restaurant_name,
-            address: `${item.address.street} ${item.address.city} ${item.address.nationality}`,
-            cuisine: "",
-            isActive: item.status.is_active ?? false,
-            is_banned: item.status.is_banned ?? false,
-            rating: undefined,
-            avatar: item?.avatar,
-          })
-        );
-        const {
-          totalItems: items,
-          totalPages: pages,
-          items: restaurantItems,
-        } = res.data;
+        const { totalItems: items, totalPages: pages, items: restaurantItems } = res.data;
         if (res.EC === 0) {
           setRestaurants(restaurantItems);
           setTotalItems(items);
@@ -409,7 +441,6 @@ const Page = () => {
           console.error("API error:", res.EM);
           setRestaurants([]);
         }
-        setRestaurants(buildData);
       })
       .catch((err) => {
         console.log("check err", err);
@@ -423,7 +454,7 @@ const Page = () => {
   useEffect(() => {
     const totalCount = restaurants.length;
     const activeCount = restaurants.filter(
-      (r) => r.isActive && !r.is_banned
+      (r) => r.status.is_active && !r.is_banned
     ).length;
     const bannedCount = restaurants.filter((r) => r.is_banned).length;
 
@@ -456,7 +487,7 @@ const Page = () => {
     setIsMenuItemsLoading(false);
   };
 
-  const handleViewMenuItems = (restaurant: Restaurant) => {
+  const handleViewMenuItems = (restaurant: RestaurantData) => {
     setSelectedRestaurant(restaurant);
     setIsMenuItemsDialogOpen(true);
     fetchMenuItems(restaurant.id);
@@ -544,18 +575,81 @@ const Page = () => {
                   }
                 />
               </PaginationItem>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (page) => (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      onClick={() => handlePageChange(page)}
-                      isActive={currentPage === page}
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                )
-              )}
+              {(() => {
+                const pages = [];
+                if (totalPages <= 4) {
+                  // If total pages is 4 or less, show all pages
+                  for (let i = 1; i <= totalPages; i++) {
+                    pages.push(
+                      <PaginationItem key={i}>
+                        <PaginationLink
+                          onClick={() => handlePageChange(i)}
+                          isActive={currentPage === i}
+                        >
+                          {i}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+                } else {
+                  // Always show first page
+                  pages.push(
+                    <PaginationItem key={1}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(1)}
+                        isActive={currentPage === 1}
+                      >
+                        1
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+
+                  // Show dots if current page is more than 2
+                  if (currentPage > 2) {
+                    pages.push(
+                      <PaginationItem key="ellipsis1">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+
+                  // Show current page if it's not first or last
+                  if (currentPage !== 1 && currentPage !== totalPages) {
+                    pages.push(
+                      <PaginationItem key={currentPage}>
+                        <PaginationLink
+                          onClick={() => handlePageChange(currentPage)}
+                          isActive={true}
+                        >
+                          {currentPage}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+
+                  // Show dots if current page is less than totalPages - 1
+                  if (currentPage < totalPages - 1) {
+                    pages.push(
+                      <PaginationItem key="ellipsis2">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+
+                  // Always show last page
+                  pages.push(
+                    <PaginationItem key={totalPages}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(totalPages)}
+                        isActive={currentPage === totalPages}
+                      >
+                        {totalPages}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                }
+                return pages;
+              })()}
               <PaginationItem>
                 <PaginationNext
                   onClick={() => handlePageChange(currentPage + 1)}

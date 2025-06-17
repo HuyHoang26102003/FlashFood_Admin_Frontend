@@ -49,6 +49,7 @@ import {
 import {
   Pagination,
   PaginationContent,
+  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -65,33 +66,46 @@ export default function DriversPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    banned: 0,
+  });
+
+  useEffect(() => {
+    const totalCount = drivers.length;
+    const activeCount = drivers.filter((d) => !d.is_banned && d.available_for_work).length;
+    const bannedCount = drivers.filter((d) => d.is_banned).length;
+
+    setStats({
+      total: totalCount,
+      active: activeCount,
+      banned: bannedCount,
+    });
+  }, [drivers]);
+
+  const fetchDrivers = async () => {
+    try {
+      console.log("Fetching page:", currentPage);
+      const response = await driverService.findAllPaginated(10, currentPage);
+      const { totalItems: items, totalPages: pages, items: driverItems } = response.data;
+      if (response.EC === 0) {
+        setDrivers(driverItems);
+        setTotalItems(items);
+        setTotalPages(pages);
+      } else {
+        console.error("API error:", response.EM);
+        setDrivers([]);
+      }
+    } catch (error) {
+      console.error("Error fetching drivers:", error);
+      setDrivers([]);
+    }
+    setIsLoading(false);
+  };
 
   useEffect(() => {
     setIsLoading(true);
-    const fetchDrivers = async () => {
-      try {
-        console.log("Fetching page:", currentPage);
-        const response = await driverService.findAllPaginated(10, currentPage);
-        const {
-          totalItems: items,
-          totalPages: pages,
-          items: driverItems,
-        } = response.data;
-        if (response.EC === 0) {
-          setDrivers(driverItems);
-          setTotalItems(items);
-          setTotalPages(pages);
-        } else {
-          console.error("API error:", response.EM);
-          setDrivers([]);
-        }
-      } catch (error) {
-        console.error("Error fetching drivers:", error);
-        setDrivers([]);
-      }
-      setIsLoading(false);
-    };
-
     fetchDrivers();
   }, [currentPage]);
 
@@ -119,18 +133,7 @@ export default function DriversPage() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "active":
-        return "bg-green-100 text-green-800";
-      case "inactive":
-        return "bg-gray-100 text-gray-800";
-      case "banned":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+
 
   const getOrderStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -234,19 +237,15 @@ export default function DriversPage() {
         return (
           <div className="text-center">
             <span
-              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                driver.is_banned
-                  ? "banned"
-                  : driver.available_for_work
-                  ? "active"
-                  : "inactive"
-              )}`}
+              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                driver.is_banned ? "bg-red-100 text-red-800" : !driver.available_for_work  ? 'bg-yellow-100 text-yellow-800' : "bg-green-100 text-green-800"
+              }`}
             >
               {driver.is_banned
                 ? "Banned"
                 : driver.available_for_work
-                ? "Active"
-                : "Inactive"}
+                ? "Online"
+                : "Offline"}
             </span>
           </div>
         );
@@ -344,7 +343,7 @@ export default function DriversPage() {
       <Spinner isVisible={isLoading} isOverlay />
       <h1 className="text-2xl font-bold mb-4">Driver Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
           <h2 className="text-lg font-semibold mb-2">Total Drivers</h2>
           <div className="text-3xl font-bold text-blue-600">{totalItems}</div>
@@ -353,22 +352,13 @@ export default function DriversPage() {
         <div className="bg-white p-4 rounded-lg shadow">
           <h2 className="text-lg font-semibold mb-2">Active Drivers</h2>
           <div className="text-3xl font-bold text-green-600">
-            {drivers?.filter((driver) => driver.available_for_work).length}
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-2">Inactive Drivers</h2>
-          <div className="text-3xl font-bold text-yellow-600">
-            {drivers?.filter((driver) => !driver.available_for_work && !driver.is_banned).length}
+            {stats.active}
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-lg shadow">
           <h2 className="text-lg font-semibold mb-2">Banned Drivers</h2>
-          <div className="text-3xl font-bold text-red-600">
-            {drivers?.filter((driver) => driver.is_banned).length}
-          </div>
+          <div className="text-3xl font-bold text-red-600">{stats.banned}</div>
         </div>
       </div>
 
@@ -422,7 +412,7 @@ export default function DriversPage() {
           </Table>
         </div>
         <div className="mt-4">
-          <Pagination>
+        <Pagination>
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
@@ -432,18 +422,81 @@ export default function DriversPage() {
                   }
                 />
               </PaginationItem>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (page) => (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      onClick={() => handlePageChange(page)}
-                      isActive={currentPage === page}
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                )
-              )}
+              {(() => {
+                const pages = [];
+                if (totalPages <= 4) {
+                  // If total pages is 4 or less, show all pages
+                  for (let i = 1; i <= totalPages; i++) {
+                    pages.push(
+                      <PaginationItem key={i}>
+                        <PaginationLink
+                          onClick={() => handlePageChange(i)}
+                          isActive={currentPage === i}
+                        >
+                          {i}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+                } else {
+                  // Always show first page
+                  pages.push(
+                    <PaginationItem key={1}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(1)}
+                        isActive={currentPage === 1}
+                      >
+                        1
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+
+                  // Show dots if current page is more than 2
+                  if (currentPage > 2) {
+                    pages.push(
+                      <PaginationItem key="ellipsis1">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+
+                  // Show current page if it's not first or last
+                  if (currentPage !== 1 && currentPage !== totalPages) {
+                    pages.push(
+                      <PaginationItem key={currentPage}>
+                        <PaginationLink
+                          onClick={() => handlePageChange(currentPage)}
+                          isActive={true}
+                        >
+                          {currentPage}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+
+                  // Show dots if current page is less than totalPages - 1
+                  if (currentPage < totalPages - 1) {
+                    pages.push(
+                      <PaginationItem key="ellipsis2">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+
+                  // Always show last page
+                  pages.push(
+                    <PaginationItem key={totalPages}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(totalPages)}
+                        isActive={currentPage === totalPages}
+                      >
+                        {totalPages}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                }
+                return pages;
+              })()}
               <PaginationItem>
                 <PaginationNext
                   onClick={() => handlePageChange(currentPage + 1)}

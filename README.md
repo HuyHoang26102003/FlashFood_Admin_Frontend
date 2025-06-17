@@ -1,7 +1,7 @@
-**1
+**1 DONE 2/3 (NOT FINISH generating avg satisfaction rate)
 fix churn rate, promotion sold, average satisfaction rate (generate rating review)
 
-**2
+**2 
 generate customercare inquiries
 
 **3

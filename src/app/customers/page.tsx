@@ -1,4 +1,13 @@
 "use client";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import React, { useEffect, useState } from "react";
 import { Eye, Power, Trash } from "lucide-react";
 import {
@@ -55,6 +64,7 @@ interface Customer {
     email: string;
   };
   last_login: number;
+  is_banned: boolean;
 }
 
 interface OrderItem {
@@ -175,20 +185,28 @@ const Page = () => {
   >([]);
   const [isComplaintHistoryLoading, setIsComplaintHistoryLoading] =
     useState(false);
-
+    
+    const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   useEffect(() => {
     setIsLoading(true);
     fetchCustomers();
-  }, []);
+  }, [currentPage]);
 
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
-      const response = await customerService.findAllPaginated();
+      const response = await customerService.findAllPaginated(10, currentPage);
       console.log("hceck res", response);
       if (response.EC === 0) {
-        console.log("check repsosne", response.data);
-        setCustomers(response.data.items);
+        const { totalItems: items, totalPages: pages, items: customerItems } = response.data;
+        setCustomers(customerItems);
+        setTotalItems(items);
+        setTotalPages(pages);
+      } else {
+        console.error("API error:", response.EM);
+        setCustomers([]);
       }
     } catch (error) {
       console.error("Error fetching customers:", error);
@@ -199,16 +217,14 @@ const Page = () => {
   useEffect(() => {
     const totalCount = customers.length;
     const activeCount = customers.filter(
-      (c) => !(Math.floor(Date.now() / 1000) - c.last_login > 2592000)
+      (c) => !c.is_banned && !(Math.floor(Date.now() / 1000) - c.last_login > 2592000)
     ).length;
-    const inactiveAccount = customers.filter(
-      (c) => Math.floor(Date.now() / 1000) - c.last_login > 2592000
-    ).length;
+    const bannedCount = customers.filter((c) => c.is_banned).length;
 
     setStats({
       total: totalCount,
       active: activeCount,
-      inactive: inactiveAccount,
+      inactive: bannedCount,
     });
   }, [customers]);
 
@@ -378,14 +394,12 @@ const Page = () => {
             <span
               className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
               ${
-                Math.floor(Date.now() / 1000) - customer.last_login > 2592000
-                  ? "bg-red-100 text-red-800"
-                  : "bg-green-100 text-green-800"
+                customer.is_banned ? "bg-red-100 text-red-800" : (Math.floor(Date.now() / 1000) - customer.last_login > 2592000 ? 'bg-yellow-100 text-yellow-800' : "bg-green-100 text-green-800")
               }`}
             >
-              {Math.floor(Date.now() / 1000) - customer.last_login > 2592000
-                ? "Inactive"
-                : "Active"}
+              {customer.is_banned ?
+                 "Banned"
+                : (Math.floor(Date.now() / 1000) - customer.last_login > 2592000 ? 'Inactive' : "Active")}
             </span>
           </div>
         );
@@ -461,6 +475,13 @@ const Page = () => {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      console.log("Changing to page:", page);
+      setCurrentPage(page);
+    }
+  };
+
   return (
     <div className="p-4">
       <Spinner isVisible={isLoading} isOverlay />
@@ -469,7 +490,7 @@ const Page = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
           <h2 className="text-lg font-semibold mb-2">Total Customers</h2>
-          <div className="text-3xl font-bold text-blue-600">{stats.total}</div>
+          <div className="text-3xl font-bold text-blue-600">{totalItems}</div>
         </div>
 
         <div className="bg-white p-4 rounded-lg shadow">
@@ -525,6 +546,103 @@ const Page = () => {
               ))}
             </TableBody>
           </Table>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  className={
+                    currentPage === 1 ? "pointer-events-none opacity-50" : ""
+                  }
+                />
+              </PaginationItem>
+              {(() => {
+                const pages = [];
+                if (totalPages <= 4) {
+                  // If total pages is 4 or less, show all pages
+                  for (let i = 1; i <= totalPages; i++) {
+                    pages.push(
+                      <PaginationItem key={i}>
+                        <PaginationLink
+                          onClick={() => handlePageChange(i)}
+                          isActive={currentPage === i}
+                        >
+                          {i}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+                } else {
+                  // Always show first page
+                  pages.push(
+                    <PaginationItem key={1}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(1)}
+                        isActive={currentPage === 1}
+                      >
+                        1
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+
+                  // Show dots if current page is more than 2
+                  if (currentPage > 2) {
+                    pages.push(
+                      <PaginationItem key="ellipsis1">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+
+                  // Show current page if it's not first or last
+                  if (currentPage !== 1 && currentPage !== totalPages) {
+                    pages.push(
+                      <PaginationItem key={currentPage}>
+                        <PaginationLink
+                          onClick={() => handlePageChange(currentPage)}
+                          isActive={true}
+                        >
+                          {currentPage}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+
+                  // Show dots if current page is less than totalPages - 1
+                  if (currentPage < totalPages - 1) {
+                    pages.push(
+                      <PaginationItem key="ellipsis2">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+
+                  // Always show last page
+                  pages.push(
+                    <PaginationItem key={totalPages}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(totalPages)}
+                        isActive={currentPage === totalPages}
+                      >
+                        {totalPages}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                }
+                return pages;
+              })()}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  className={
+                    currentPage === totalPages
+                      ? "pointer-events-none opacity-50"
+                      : ""
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         </div>
       </div>
 
