@@ -1,11 +1,11 @@
 import axios from "axios";
 import { useAdminStore } from "@/stores/adminStore";
+import { API_IP, API_PORT } from "@/constants/links";
 // import { API_BASE_URL } from '@/utils/constants/api';
 
-const BACKEND_URL='http://192.168.1.21'
 
 const axiosInstance = axios.create({
-  baseURL: `${BACKEND_URL}:1310`,
+  baseURL: `${API_IP}:${API_PORT}`,
   headers: {
     "Content-Type": "application/json",
   },

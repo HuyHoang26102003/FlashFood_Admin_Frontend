@@ -31,15 +31,15 @@ interface OrderStatsChartProps {
 const chartConfig = {
   total: {
     label: "Total Orders",
-    color: "hsl(var(--chart-1))",
+    color: "#9573D5",
   },
   delivered: {
     label: "Delivered",
-    color: "#10b981",
+    color: "#50A040",
   },
   cancelled: {
     label: "Cancelled",
-    color: "#ef4444",
+    color: "hsl(var(--chart-1))",
   },
 } satisfies ChartConfig;
 

@@ -6,7 +6,6 @@ import { UserGrowthRateChart } from "@/components/Chart/Dashboard/UserGrowthRate
 import { OrderStatsChart } from "@/components/Chart/Dashboard/OrderStatsChart";
 import { DashboardTable } from "@/components/DashboardTable";
 import PageTitle from "@/components/PageTitle";
-import { LiveStatusIndicator } from "@/components/LiveStatusIndicator";
 import { IDashboardListCards } from "@/utils/sample/DashboardListCards";
 import { CardCategory } from "@/utils/constants/card";
 import { FaUsers, FaShoppingCart, FaGift, FaChartLine } from "react-icons/fa";
@@ -30,14 +29,12 @@ const AdminDashboard = () => {
     loading,
     error,
     lastUpdated,
-    isConnected,
-    refreshData,
   } = useLiveDashboardData({
     date1,
     date2,
     enablePolling,
     enableWebSocket,
-    pollingInterval: 30000, // 30 seconds to match your backend
+    pollingInterval: 30000000, // 30 seconds to match your backend
   });
 
   // Create dashboard cards data from real API data
@@ -46,14 +43,14 @@ const AdminDashboard = () => {
         {
           id: 1,
           type: "TOTAL_USERS" as CardCategory,
-          value: dashboardData.total_users?.toString() || "0",
+          value: dashboardData.total_users?.metric.toString() || "0",
           label: "Total Users",
           icon: FaUsers,
           difference: 15, // You can calculate this based on previous data
         },
         {
           id: 2,
-          type: "TOTAL_REVENUE" as CardCategory,
+          type: "TOTAL_ORDERS" as CardCategory,
           value: dashboardData.order_volume?.metric.toString() || "0",
           label: "Total Orders",
           icon: FaShoppingCart,
@@ -61,19 +58,19 @@ const AdminDashboard = () => {
         },
         {
           id: 4,
-          type: "SATISFACTION_RATE" as CardCategory,
-          value: dashboardData.sold_promotions?.toString() || "0",
+          type: "SOLD_PROMOTIONS" as CardCategory,
+          value: dashboardData.sold_promotions?.metric?.toString() || "0",
           label: "Sold Promotions",
           icon: FaGift,
           difference: 5,
         },
         {
           id: 5,
-          type: "SATISFACTION_RATE" as CardCategory,
+          type: "CHURN_RATE" as CardCategory,
           value: `${(dashboardData.churn_rate?.metric * 100).toFixed(1)}%` || "0%",
           label: "Churn Rate",
           icon: FaChartLine,
-          difference: dashboardData.churn_rate?.monthlyChanges ? (dashboardData.churn_rate.monthlyChanges * 100) : -3,
+          difference: dashboardData.churn_rate?.monthlyChanges ? (dashboardData.churn_rate.monthlyChanges) : -3,
         },
       ]
     : [];
@@ -88,48 +85,7 @@ const AdminDashboard = () => {
         isDashboard
       />
 
-      {/* Live Status Indicator */}
-      <div className="card mb-4">
-        <div className="flex items-center justify-between">
-          <div className="fc gap-2">
-            <h2 className="text-lg font-semibold">📊 Live Dashboard</h2>
-            <p className="text-sm text-muted-foreground">
-              Real-time data updates from your FlashFood system
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={enablePolling}
-                  onChange={(e) => setEnablePolling(e.target.checked)}
-                  className="rounded"
-                />
-                Polling (30s)
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={enableWebSocket}
-                  onChange={(e) => setEnableWebSocket(e.target.checked)}
-                  className="rounded"
-                />
-                WebSocket
-              </label>
-            </div>
-            <LiveStatusIndicator
-              isConnected={isConnected}
-              lastUpdated={lastUpdated}
-              error={error}
-              loading={loading}
-              onRefresh={refreshData}
-              enablePolling={enablePolling}
-              enableWebSocket={enableWebSocket}
-            />
-          </div>
-        </div>
-      </div>
+     
 
       {/* Error State */}
       {error && !loading && (

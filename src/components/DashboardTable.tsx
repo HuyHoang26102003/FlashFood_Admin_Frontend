@@ -18,8 +18,8 @@ interface DashboardTableProps {
   order_cancellation_rate?: MetricData;
   order_volume?: MetricData;
   gross_from_promotion?: MetricData;
-  sold_promotions?: number;
-  total_users?: number;
+  sold_promotions?: MetricData;
+  total_users?: MetricData;
   period_type?: string;
 }
 
@@ -62,7 +62,7 @@ export function DashboardTable({
       metric: "Churn Rate",
       value:
         churn_rate !== undefined ? `${(churn_rate.metric * 100).toFixed(1)}%` : "N/A",
-      changePercent: churn_rate?.monthlyChanges ? (churn_rate.monthlyChanges * 100) : 0,
+      changePercent: churn_rate?.monthlyChanges ? (churn_rate.monthlyChanges) : 0,
       changeType: churn_rate?.changeType || "percentage",
       description: "Percentage of users who are not active for 1 month",
       isPositiveChange: (churn_rate?.monthlyChanges || 0) <= 0,
@@ -73,7 +73,7 @@ export function DashboardTable({
         order_cancellation_rate !== undefined
           ? `${(order_cancellation_rate.metric * 100).toFixed(1)}%`
           : "N/A",
-      changePercent: order_cancellation_rate?.monthlyChanges ? (order_cancellation_rate.monthlyChanges * 100) : 0,
+      changePercent: order_cancellation_rate?.monthlyChanges ? (order_cancellation_rate.monthlyChanges) : 0,
       changeType: order_cancellation_rate?.changeType || "percentage",
       description: "Percentage of orders canceled before delivery",
       isPositiveChange: (order_cancellation_rate?.monthlyChanges || 0) <= 0,
@@ -104,10 +104,10 @@ export function DashboardTable({
       metric: "Sold Promotions",
       value:
         sold_promotions !== undefined
-          ? `${sold_promotions.toLocaleString()} Promotions`
+          ? `${sold_promotions.metric.toLocaleString()} Promotions`
           : "N/A",
-      changePercent: 0.08,
-      changeType: "real",
+      changePercent: sold_promotions?.monthlyChanges || 0,
+      changeType: sold_promotions?.changeType || "real",
       description: "Number of promotional offers successfully sold",
       isPositiveChange: true,
     },
@@ -115,10 +115,10 @@ export function DashboardTable({
       metric: "Total Users",
       value:
         total_users !== undefined
-          ? `${total_users.toLocaleString()} Users`
+          ? `${total_users.metric.toLocaleString()} Users`
           : "N/A",
-      changePercent: 0.12,
-      changeType: "real",
+      changePercent: total_users?.monthlyChanges || 0,
+      changeType: total_users?.changeType || "real",
       description: "Total number of registered users across all categories",
       isPositiveChange: true,
     },

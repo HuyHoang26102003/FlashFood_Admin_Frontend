@@ -40,8 +40,8 @@ export interface DashboardData {
   period_end: string;
   period_start: string;
   period_type: string;
-  sold_promotions: number;
-  total_users: number;
+  sold_promotions: MetricData;
+  total_users: MetricData;
   updated_at: string;
   user_growth_rate: UserGrowthData[];
 } 
