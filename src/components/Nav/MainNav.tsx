@@ -33,7 +33,7 @@ const MainNav = () => {
   const userFullName = adminZ
     ? `${adminZ.last_name} ${adminZ.first_name}`
     : `${customerCareZ?.last_name} ${customerCareZ?.first_name}`;
-  if (!adminZ?.role || !customerCareZ) {
+  if (!adminZ?.role && !customerCareZ) {
     return null;
   }
   return (

@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Eye, Power, Trash } from "lucide-react";
+import { Eye, Power, Trash, Loader2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -53,6 +53,9 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from "@/components/ui/pagination";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import axiosInstance from "@/lib/axios";
 
 interface RestaurantData {
   id: string;
@@ -137,13 +140,21 @@ const Page = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
+  const [banReason, setBanReason] = useState("");
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
+  const [isBanLoading, setIsBanLoading] = useState(false);
 
   const handleStatusChange = async (id: string, shouldBan: boolean) => {
+    if (shouldBan) {
+      setSelectedRestaurantId(id);
+      setIsBanDialogOpen(true);
+      return;
+    }
+
     try {
-      const response = await restaurantService.toggleRestaurantStatus(
-        id,
-        shouldBan
-      );
+      setIsLoading(true);
+      const response = await restaurantService.toggleRestaurantStatus(id, shouldBan);
       if (response.EC === 0) {
         setRestaurants((prevRestaurants) =>
           prevRestaurants.map((restaurant) =>
@@ -162,6 +173,41 @@ const Page = () => {
       }
     } catch (error) {
       console.error("Error toggling restaurant status:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBanSubmit = async () => {
+    if (!selectedRestaurantId || !banReason.trim()) return;
+
+    try {
+      setIsBanLoading(true);
+      const response = await axiosInstance.post(`admin/ban/Restaurant/${selectedRestaurantId}`, { reason: banReason });
+
+      if (response.data.EC === 0) {
+        setRestaurants((prevRestaurants) =>
+          prevRestaurants.map((restaurant) =>
+            restaurant.id === selectedRestaurantId
+              ? {
+                  ...restaurant,
+                  is_banned: true,
+                  status: {
+                    ...restaurant.status,
+                    is_active: false,
+                  },
+                }
+              : restaurant
+          )
+        );
+        setIsBanDialogOpen(false);
+        setBanReason("");
+        setSelectedRestaurantId(null);
+      }
+    } catch (error) {
+      console.error("Error banning restaurant:", error);
+    } finally {
+      setIsBanLoading(false);
     }
   };
 
@@ -830,6 +876,53 @@ const Page = () => {
                 </AccordionItem>
               </Accordion>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog  open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
+        <DialogContent className="w-96">
+          <DialogHeader>
+            <DialogTitle>Ban Restaurant</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for banning this restaurant. This will be recorded for administrative purposes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reason">Ban Reason</Label>
+              <Input
+                id="reason"
+                placeholder="Enter the reason for banning..."
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsBanDialogOpen(false);
+                setBanReason("");
+                setSelectedRestaurantId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleBanSubmit}
+              disabled={!banReason.trim() || isBanLoading}
+            >
+              {isBanLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Banning...
+                </>
+              ) : (
+                "Ban Restaurant"
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -21,7 +21,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, Eye, MoreHorizontal, Power, Trash } from "lucide-react";
+import { ArrowUpDown, Eye, MoreHorizontal, Power, Trash, Loader2 } from "lucide-react";
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import { Spinner } from "@/components/Spinner";
@@ -34,6 +34,16 @@ import {
   PaginationNext,
   PaginationEllipsis,
 } from "@/components/ui/pagination";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import axiosInstance from "@/lib/axios";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface CustomerCare {
   id: string;
@@ -64,13 +74,21 @@ const Page = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
+  const [banReason, setBanReason] = useState("");
+  const [selectedCCId, setSelectedCCId] = useState<string | null>(null);
+  const [isBanLoading, setIsBanLoading] = useState(false);
 
   const handleStatusChange = async (id: string, shouldBan: boolean) => {
+    if (shouldBan) {
+      setSelectedCCId(id);
+      setIsBanDialogOpen(true);
+      return;
+    }
+
     try {
-      const response = await customerCareService.toggleCustomerCareStatus(
-        id,
-        shouldBan
-      );
+      setIsLoading(true);
+      const response = await customerCareService.toggleCustomerCareStatus(id, shouldBan);
       if (response.EC === 0) {
         setCustomerCare((prevCC) =>
           prevCC.map((cc) =>
@@ -82,6 +100,38 @@ const Page = () => {
       }
     } catch (error) {
       console.error("Error toggling customer care status:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBanSubmit = async () => {
+    if (!selectedCCId || !banReason.trim()) return;
+
+    try {
+      setIsBanLoading(true);
+      const response = await axiosInstance.post(`admin/ban/CustomerCare/${selectedCCId}`, { reason: banReason });
+
+      if (response.data.EC === 0) {
+        setCustomerCare((prevCC) =>
+          prevCC.map((cc) =>
+            cc.id === selectedCCId
+              ? {
+                  ...cc,
+                  is_banned: true,
+                  available_for_work: false,
+                }
+              : cc
+          )
+        );
+        setIsBanDialogOpen(false);
+        setBanReason("");
+        setSelectedCCId(null);
+      }
+    } catch (error) {
+      console.error("Error banning customer care:", error);
+    } finally {
+      setIsBanLoading(false);
     }
   };
 
@@ -477,6 +527,53 @@ const Page = () => {
           </PaginationContent>
         </Pagination>
       </div>
+
+      <Dialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
+        <DialogContent className="w-96">
+          <DialogHeader>
+            <DialogTitle>Ban Customer Care Representative</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for banning this customer care representative. This will be recorded for administrative purposes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reason">Ban Reason</Label>
+              <Input
+                id="reason"
+                placeholder="Enter the reason for banning..."
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsBanDialogOpen(false);
+                setBanReason("");
+                setSelectedCCId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleBanSubmit}
+              disabled={!banReason.trim() || isBanLoading}
+            >
+              {isBanLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Banning...
+                </>
+              ) : (
+                "Ban Representative"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -4,13 +4,13 @@ fix churn rate, promotion sold, average satisfaction rate (generate rating revie
 **2 
 generate customercare inquiries
 
-**3
+**3 DONE
 ban acc (Driver, restaurant, customer, customer care)
 
 **4
 escalte customercare inquiries to admin 
 
-**5
+**5 
 chat cc - driver - customer - restaurant
 
 **6

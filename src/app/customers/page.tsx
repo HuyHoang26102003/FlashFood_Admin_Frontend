@@ -9,7 +9,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import React, { useEffect, useState } from "react";
-import { Eye, Power, Trash } from "lucide-react";
+import { Eye, Power, Trash, Loader2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -51,6 +51,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import FallbackImage from "@/components/FallbackImage";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import axiosInstance from "@/lib/axios";
 
 interface Customer {
   id: string;
@@ -189,6 +192,11 @@ const Page = () => {
     const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
+  const [banReason, setBanReason] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [isBanLoading, setIsBanLoading] = useState(false);
+
   useEffect(() => {
     setIsLoading(true);
     fetchCustomers();
@@ -237,22 +245,30 @@ const Page = () => {
   //   }
   // };
 
-  const handleStatusChange = async (customerId: string, newStatus: boolean) => {
-    setIsLoading(true);
-    const result = await customerService.updateCustomerStatus(
-      customerId,
-      newStatus
-    );
-    setIsLoading(false);
-    if (result && result.EC === 0) {
-      setCustomers((prevCustomers) =>
-        prevCustomers.map((customer) =>
-          customer.id === customerId
-            ? { ...customer, isActive: newStatus }
-            : customer
-        )
-      );
+  const handleStatusChange = async (customerId: string, shouldBan: boolean) => {
+    if (shouldBan) {
+      setSelectedCustomerId(customerId);
+      setIsBanDialogOpen(true);
+      return;
     }
+
+    // try {
+    //   setIsLoading(true);
+    //   // const result = await customerService.updateCustomerStatus(customerId, shouldBan);
+    //   if (result && result.EC === 0) {
+    //     setCustomers((prevCustomers) =>
+    //       prevCustomers.map((customer) =>
+    //         customer.id === customerId
+    //           ? { ...customer, is_banned: shouldBan }
+    //           : customer
+    //       )
+    //     );
+    //   }
+    // } catch (error) {
+    //   console.error("Error updating customer status:", error);
+    // } finally {
+    //   setIsLoading(false);
+    // }
   };
 
   const fetchCustomerOrders = async (customerId: string) => {
@@ -297,6 +313,35 @@ const Page = () => {
     setSelectedCustomer(customer);
     setIsComplaintHistoryDialogOpen(true);
     fetchCustomerComplaints(customer.id);
+  };
+
+  const handleBanSubmit = async () => {
+    if (!selectedCustomerId || !banReason.trim()) return;
+
+    try {
+      setIsBanLoading(true);
+      const response = await axiosInstance.post(`admin/ban/Customer/${selectedCustomerId}`, { reason: banReason });
+
+      if (response.data.EC === 0) {
+        setCustomers((prevCustomers) =>
+          prevCustomers.map((customer) =>
+            customer.id === selectedCustomerId
+              ? {
+                  ...customer,
+                  is_banned: true,
+                }
+              : customer
+          )
+        );
+        setIsBanDialogOpen(false);
+        setBanReason("");
+        setSelectedCustomerId(null);
+      }
+    } catch (error) {
+      console.error("Error banning customer:", error);
+    } finally {
+      setIsBanLoading(false);
+    }
   };
 
   const columns: ColumnDef<Customer>[] = [
@@ -440,18 +485,12 @@ const Page = () => {
                   variant="ghost"
                   className="flex items-center justify-start"
                   onClick={() =>
-                    handleStatusChange(
-                      customer.id,
-                      !(
-                        Math.floor(Date.now() / 1000) - customer.last_login >
-                        2592000
-                      )
-                    )
+                    handleStatusChange(customer.id, !customer.is_banned)
                   }
                 >
                   <Power className="mr-2 h-4 w-4" />
                   {Math.floor(Date.now() / 1000) - customer.last_login > 2592000
-                    ? "Deactivate"
+                    ? "Ban"
                     : "Activate"}
                 </Button>
                 <Button
@@ -1074,6 +1113,53 @@ const Page = () => {
                 </AccordionItem>
               </Accordion>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
+        <DialogContent className="w-96">
+          <DialogHeader>
+            <DialogTitle>Ban Customer</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for banning this customer. This will be recorded for administrative purposes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reason">Ban Reason</Label>
+              <Input
+                id="reason"
+                placeholder="Enter the reason for banning..."
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsBanDialogOpen(false);
+                setBanReason("");
+                setSelectedCustomerId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleBanSubmit}
+              disabled={!banReason.trim() || isBanLoading}
+            >
+              {isBanLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Banning...
+                </>
+              ) : (
+                "Ban Customer"
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

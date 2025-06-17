@@ -56,6 +56,10 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { formatEpochToExactTime } from "@/utils/functions/formatTime";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import axiosInstance from "@/lib/axios";
+import { Loader2 } from "lucide-react";
 
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -71,6 +75,10 @@ export default function DriversPage() {
     active: 0,
     banned: 0,
   });
+  const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
+  const [banReason, setBanReason] = useState("");
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [isBanLoading, setIsBanLoading] = useState(false);
 
   useEffect(() => {
     const totalCount = drivers.length;
@@ -120,20 +128,57 @@ export default function DriversPage() {
     }
   };
 
-  const handleStatusChange = async (driverId: string, isBanned: boolean) => {
+  const handleStatusChange = async (driverId: string, shouldBan: boolean) => {
+    if (shouldBan) {
+      setSelectedDriverId(driverId);
+      setIsBanDialogOpen(true);
+      return;
+    }
+
     try {
-      await driverService.updateDriverStatus(driverId, isBanned);
+      setIsLoading(true);
+      await driverService.updateDriverStatus(driverId, shouldBan);
       setDrivers((prevDrivers) =>
         prevDrivers.map((driver) =>
-          driver.id === driverId ? { ...driver, is_banned: isBanned } : driver
+          driver.id === driverId ? { ...driver, is_banned: shouldBan } : driver
         )
       );
     } catch (error) {
       console.error("Error updating driver status:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleBanSubmit = async () => {
+    if (!selectedDriverId || !banReason.trim()) return;
 
+    try {
+      setIsBanLoading(true);
+      const response = await axiosInstance.post(`admin/ban/Driver/${selectedDriverId}`, { reason: banReason });
+
+      if (response.data.EC === 0) {
+        setDrivers((prevDrivers) =>
+          prevDrivers.map((driver) =>
+            driver.id === selectedDriverId
+              ? {
+                  ...driver,
+                  is_banned: true,
+                  available_for_work: false,
+                }
+              : driver
+          )
+        );
+        setIsBanDialogOpen(false);
+        setBanReason("");
+        setSelectedDriverId(null);
+      }
+    } catch (error) {
+      console.error("Error banning driver:", error);
+    } finally {
+      setIsBanLoading(false);
+    }
+  };
 
   const getOrderStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -727,6 +772,53 @@ export default function DriversPage() {
               })}
             </div>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
+        <DialogContent className="w-96">
+          <DialogHeader>
+            <DialogTitle>Ban Driver</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for banning this driver. This will be recorded for administrative purposes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reason">Ban Reason</Label>
+              <Input
+                id="reason"
+                placeholder="Enter the reason for banning..."
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsBanDialogOpen(false);
+                setBanReason("");
+                setSelectedDriverId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleBanSubmit}
+              disabled={!banReason.trim() || isBanLoading}
+            >
+              {isBanLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Banning...
+                </>
+              ) : (
+                "Ban Driver"
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
