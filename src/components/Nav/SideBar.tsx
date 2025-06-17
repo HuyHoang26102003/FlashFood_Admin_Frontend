@@ -49,7 +49,8 @@ const SideBar = () => {
         return AD_ADMIN_SIDEBAR_ITEMS.filter(
           (item) =>
             item.title !== "App Managers" &&
-            item.title !== "Customers Statistics"
+            item.title !== "Customers Statistics" && 
+            item.title !== 'Balance Activity'
         );
       case "FINANCE_ADMIN": {
         const filteredItems = AD_ADMIN_SIDEBAR_ITEMS.filter(

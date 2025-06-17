@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 // Define enums and types
@@ -79,12 +80,20 @@ const Page = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAdminStore();
-  const [selectedPermissions, setSelectedPermissions] = useState<
-    AdminPermission[]
-  >([]);
   const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
-  const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
-  const [selectedAdmin, setSelectedAdmin] = useState<Admin | null>(null);
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    admin: Admin | null;
+    originalPermissions: AdminPermission[];
+    currentPermissions: AdminPermission[];
+    changedPermissions: AdminPermission[];
+  }>({
+    isOpen: false,
+    admin: null,
+    originalPermissions: [],
+    currentPermissions: [],
+    changedPermissions: [],
+  });
 
   useEffect(() => {
     const fetchAllAdmin = async () => {
@@ -109,9 +118,15 @@ const Page = () => {
   }, []);
 
   const handleAdjustPermissions = (admin: Admin) => {
-    setSelectedAdmin(admin);
-    setSelectedPermissions(admin.permissions);
-    setIsPermissionsDialogOpen(true);
+    // Store both original and current permissions
+    const adminPermissions = [...admin.permissions];
+    setDialogState({
+      isOpen: true,
+      admin,
+      originalPermissions: adminPermissions,
+      currentPermissions: adminPermissions,
+      changedPermissions: [],
+    });
     setOpenPopoverId(null);
   };
 
@@ -119,24 +134,62 @@ const Page = () => {
     permission: AdminPermission,
     checked: boolean
   ) => {
-    setSelectedPermissions((prev) =>
-      checked ? [...prev, permission] : prev.filter((p) => p !== permission)
-    );
+    setDialogState((prev) => {
+      // Update current permissions
+      const newCurrentPermissions = checked
+        ? [...prev.currentPermissions, permission]
+        : prev.currentPermissions.filter((p) => p !== permission);
+      
+      // Calculate if this is a real change from original state
+      const wasOriginallyChecked = prev.originalPermissions.includes(permission);
+      
+      let newChangedPermissions = [...prev.changedPermissions];
+      
+      if (wasOriginallyChecked !== checked) {
+        // This permission was changed by the user
+        if (!newChangedPermissions.includes(permission)) {
+          newChangedPermissions.push(permission);
+        }
+      } else {
+        // This permission was changed back to its original state
+        newChangedPermissions = newChangedPermissions.filter(p => p !== permission);
+      }
+      
+      return {
+        ...prev,
+        currentPermissions: newCurrentPermissions,
+        changedPermissions: newChangedPermissions,
+      };
+    });
   };
 
   const handleSavePermissions = async () => {
-    if (!selectedAdmin || !user?.id) return;
+    if (!dialogState.admin || !user?.id) return;
+
+    // Only send the permissions that were actually changed by the user
+    const changedPermissions = dialogState.changedPermissions;
+    
+    // We need to know which permissions to add and which to remove
+    const permissionsToUpdate = dialogState.changedPermissions.map(permission => {
+      return {
+        permission,
+        action: dialogState.currentPermissions.includes(permission) ? 'add' : 'remove'
+      };
+    });
+
     try {
+      console.log("Changed permissions:", changedPermissions);
+      console.log("Permissions to update:", permissionsToUpdate);
+      
       const response = await superAdminService.updateAdminPermissions(
-        selectedAdmin.id,
+        dialogState.admin.id,
         {
-          permissions: selectedPermissions,
+          permissions: changedPermissions,
           requesterId: user.id,
         }
       );
 
       if (response.EC === 0) {
-        // Refresh the admin list after successful update
         const adminListResponse = await superAdminService.getAllAdmin();
         if (adminListResponse.EC === 0) {
           setAdmins(adminListResponse.data);
@@ -147,15 +200,24 @@ const Page = () => {
     } catch (error) {
       console.error("Error updating permissions:", error);
     }
-    setIsPermissionsDialogOpen(false);
-    setSelectedAdmin(null);
-    setSelectedPermissions([]);
+
+    setDialogState({ 
+      isOpen: false, 
+      admin: null, 
+      originalPermissions: [],
+      currentPermissions: [],
+      changedPermissions: [],
+    });
   };
 
   const handleCancelPermissions = () => {
-    setIsPermissionsDialogOpen(false);
-    setSelectedAdmin(null);
-    setSelectedPermissions([]);
+    setDialogState({ 
+      isOpen: false, 
+      admin: null, 
+      originalPermissions: [],
+      currentPermissions: [],
+      changedPermissions: [],
+    });
   };
 
   const columns: ColumnDef<Admin>[] = [
@@ -179,7 +241,7 @@ const Page = () => {
       },
     },
     {
-      accessorKey: "rple",
+      accessorKey: "role",
       header: "Role",
       cell: ({ row }) => {
         const admin = row.original;
@@ -211,83 +273,37 @@ const Page = () => {
           admin.role !== AdminRole.SUPER_ADMIN && admin.id !== user?.id;
 
         return (
-          <>
-            <Popover
-              open={openPopoverId === admin.id}
-              onOpenChange={(open) => setOpenPopoverId(open ? admin.id : null)}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="h-8 w-8 p-0 hover:bg-gray-100"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-48"
-                align="end"
-                side="left"
-                sideOffset={5}
+          <Popover
+            open={openPopoverId === admin.id}
+            onOpenChange={(open) => setOpenPopoverId(open ? admin.id : null)}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                className="h-8 w-8 p-0 hover:bg-gray-100"
               >
-                <div className="grid gap-2">
-                  {canManagePermissions && (
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => handleAdjustPermissions(admin)}
-                    >
-                      Adjust Permissions
-                    </Button>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            <Dialog
-              open={isPermissionsDialogOpen}
-              onOpenChange={setIsPermissionsDialogOpen}
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-48"
+              align="end"
+              side="left"
+              sideOffset={5}
             >
-              <DialogContent className="w-full overflow-y-auto h-[90]">
-                <DialogHeader>
-                  <DialogTitle>Manage Permissions</DialogTitle>
-                </DialogHeader>
-                <div className="max-h-[400px] overflow-y-auto py-4">
-                  <div className="space-y-2">
-                    {Object.values(AdminPermission).map((permission) => (
-                      <div
-                        key={permission}
-                        className="flex items-center space-x-2"
-                      >
-                        <Checkbox
-                          id={permission}
-                          checked={selectedPermissions.includes(permission)}
-                          onCheckedChange={(checked) => {
-                            handlePermissionChange(
-                              permission,
-                              checked as boolean
-                            );
-                          }}
-                        />
-                        <label
-                          htmlFor={permission}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          {permission}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={handleCancelPermissions}>
-                    Cancel
+              <div className="grid gap-2">
+                {canManagePermissions && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => handleAdjustPermissions(admin)}
+                  >
+                    Adjust Permissions
                   </Button>
-                  <Button onClick={handleSavePermissions}>Save Changes</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         );
       },
     },
@@ -349,6 +365,70 @@ const Page = () => {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog
+        open={dialogState.isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCancelPermissions();
+          }
+        }}
+      >
+        <DialogContent
+          className="w-full overflow-y-auto max-h-[80vh]"
+        >
+          <DialogHeader>
+            <DialogTitle>Manage Permissions</DialogTitle>
+            <DialogDescription>
+              Adjust permissions for {dialogState.admin?.first_name}{" "}
+              {dialogState.admin?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-2">
+              {Object.values(AdminPermission).map((permission) => (
+                <div
+                  key={permission}
+                  className="flex items-center space-x-2"
+                >
+                  <Checkbox
+                    id={permission}
+                    checked={dialogState.currentPermissions.includes(permission)}
+                    onCheckedChange={(checked) => {
+                      if (typeof checked === "boolean") {
+                        handlePermissionChange(permission, checked);
+                      }
+                    }}
+                    aria-label={`Toggle ${permission} permission`}
+                  />
+                  <label
+                    htmlFor={permission}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    {permission}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            {dialogState.changedPermissions.length > 0 && (
+              <p className="text-xs text-muted-foreground mr-auto">
+                {dialogState.changedPermissions.length} permission(s) changed
+              </p>
+            )}
+            <Button variant="outline" onClick={handleCancelPermissions}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSavePermissions}
+              disabled={dialogState.changedPermissions.length === 0}
+            >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

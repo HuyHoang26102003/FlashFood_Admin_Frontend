@@ -7,7 +7,7 @@ generate customercare inquiries
 **3 DONE
 ban acc (Driver, restaurant, customer, customer care)
 
-**4
+**4 DONE
 escalte customercare inquiries to admin 
 
 **5 
@@ -16,7 +16,7 @@ chat cc - driver - customer - restaurant
 **6 DONE
 implement admin, customercare details (first_name, last_name, avatar) global state => edit profile (/settings)
 
-**7 
+**7  DONE
 implement transaction fluctuation over period (income - outcome line chart)
 
 **8

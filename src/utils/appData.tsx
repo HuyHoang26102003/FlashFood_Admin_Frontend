@@ -50,6 +50,10 @@ export const AD_ADMIN_SIDEBAR_ITEMS: sideBarItem[] = [
         link: "/manage/notifications",
       },
       {
+        title: "Balance Activity",
+        link: "/manage/balance-activity",
+      },
+      {
         title: "Manage FAQs",
         link: "/manage/faqs",
       },
