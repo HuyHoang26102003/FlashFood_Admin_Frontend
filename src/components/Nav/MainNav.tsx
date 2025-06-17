@@ -22,7 +22,8 @@ import { Bell, Bolt, MessageCircle, Ticket } from "lucide-react";
 const MainNav = () => {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const logout = useAdminStore((state) => state.logout);
+  const logoutAdmin = useAdminStore.getState().logout;
+  const logoutCustomerCare = useCustomerCareStore.getState().logout;
 
   const adminZ = useAdminStore((state) => state.user);
   const customerCareZ = useCustomerCareStore((state) => state.user);
@@ -110,7 +111,11 @@ const MainNav = () => {
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button
-                    onClick={() => logout()}
+                    onClick={() => {
+                      logoutAdmin();
+                      logoutCustomerCare();
+                      router.push("/");
+                    }}
                     variant={"ghost"}
                     className="text-red-500 hover:bg-red-100 w-full justify-start bg-grey"
                   >

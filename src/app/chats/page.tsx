@@ -110,14 +110,25 @@ export default function ChatPage() {
   // const hasFetchedHistory = useRef<{ [key: string]: boolean }>({});
 
   const getAccessToken = () => {
-    const customerCareStore = useCustomerCareStore.getState();
     const adminStore = useAdminStore.getState();
-    return customerCareStore.isAuthenticated && customerCareStore.user
-      ? customerCareStore.user.accessToken
-      : adminStore.isAuthenticated && adminStore.user
-      ? adminStore.user.accessToken
-      : null;
+    const customerCareStore = useCustomerCareStore.getState();
+    
+    // Check admin token first
+    if (adminStore.isAuthenticated && adminStore.user) {
+      console.log('Using admin token');
+      return adminStore.user.accessToken;
+    }
+    
+    // Fallback to customer care token
+    if (customerCareStore.isAuthenticated && customerCareStore.user) {
+      console.log('Using customer care token');
+      return customerCareStore.user.accessToken;
+    }
+    
+    console.log('No valid token found');
+    return null;
   };
+  console.log('check get acace token' , getAccessToken())
 
   const fetchAllChats = async (
     socketInstance: ReturnType<typeof createSocket>

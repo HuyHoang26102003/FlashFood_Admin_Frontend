@@ -482,7 +482,7 @@ const Page = () => {
 
 
   return (
-    <div className="w-full  flex gap-4 justify-between">
+    <div className="w-full mt-4 flex gap-4 justify-between">
       <div className=" w-4/12 flex flex-col ">
         {tabs
           ?.map((item) => (
