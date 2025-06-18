@@ -28,8 +28,8 @@ export interface UserSearchResponse {
 }
 
 export const userSearchService = {
-  searchUsers: async (query: string): Promise<UserSearchResponse> => {
-    const response = await axiosInstance.get(`/users/search?q=${encodeURIComponent(query)}`);
+  searchUsers: async (query: string, userType?: 'customer' | 'driver' | 'restaurant' | 'customer_care' | 'admin'): Promise<UserSearchResponse> => {
+    const response = await axiosInstance.get(`/users/search?q=${encodeURIComponent(query)}&user_type=${userType}`);
     return response.data;
   },
 }; 

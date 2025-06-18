@@ -35,6 +35,8 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 // Define enums and types
 enum AdminRole {
@@ -78,8 +80,10 @@ interface Admin {
 const Page = () => {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAdminStore();
+  const { toast } = useToast();
   const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
@@ -178,6 +182,7 @@ const Page = () => {
     });
 
     try {
+      setIsSaving(true);
       console.log("Changed permissions:", changedPermissions);
       console.log("Permissions to update:", permissionsToUpdate);
       
@@ -193,21 +198,35 @@ const Page = () => {
         const adminListResponse = await superAdminService.getAllAdmin();
         if (adminListResponse.EC === 0) {
           setAdmins(adminListResponse.data);
+          toast({
+            title: "Success",
+            description: "Permissions updated successfully",
+          });
         }
       } else {
-        console.error("Failed to update permissions:", response.EM);
+        toast({
+          title: "Error",
+          description: response.EM || "Failed to update permissions",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error updating permissions:", error);
+      toast({
+        title: "Error",
+        description: "An error occurred while updating permissions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+      setDialogState({ 
+        isOpen: false, 
+        admin: null, 
+        originalPermissions: [],
+        currentPermissions: [],
+        changedPermissions: [],
+      });
     }
-
-    setDialogState({ 
-      isOpen: false, 
-      admin: null, 
-      originalPermissions: [],
-      currentPermissions: [],
-      changedPermissions: [],
-    });
   };
 
   const handleCancelPermissions = () => {
@@ -400,6 +419,7 @@ const Page = () => {
                       }
                     }}
                     aria-label={`Toggle ${permission} permission`}
+                    disabled={isSaving}
                   />
                   <label
                     htmlFor={permission}
@@ -417,14 +437,25 @@ const Page = () => {
                 {dialogState.changedPermissions.length} permission(s) changed
               </p>
             )}
-            <Button variant="outline" onClick={handleCancelPermissions}>
+            <Button 
+              variant="outline" 
+              onClick={handleCancelPermissions}
+              disabled={isSaving}
+            >
               Cancel
             </Button>
             <Button 
               onClick={handleSavePermissions}
-              disabled={dialogState.changedPermissions.length === 0}
+              disabled={dialogState.changedPermissions.length === 0 || isSaving}
             >
-              Save Changes
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -45,6 +45,16 @@ import {
   PaginationNext,
   PaginationLink,
 } from "@/components/ui/pagination";
+import { Input } from "@/components/ui/input";
+import PageTitle from "@/components/PageTitle";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 const Page = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -73,9 +83,15 @@ const Page = () => {
         setTotalPages(data.totalPages);
 
         // Calculate stats based on order status
-        const deliveredCount = data.items.filter(order => order.status === "DELIVERED").length;
-        const pendingCount = data.items.filter(order => order.status === "PENDING").length;
-        const cancelledCount = data.items.filter(order => order.cancelled_at !== null).length;
+        const deliveredCount = data.items.filter(
+          (order) => order.status === "DELIVERED"
+        ).length;
+        const pendingCount = data.items.filter(
+          (order) => order.status === "PENDING"
+        ).length;
+        const cancelledCount = data.items.filter(
+          (order) => order.status === "CANCELLED"
+        ).length;
 
         setStats({
           total: data.totalItems,
@@ -288,9 +304,25 @@ const Page = () => {
   return (
     <div className="p-4">
       <Spinner isVisible={isLoading} isOverlay />
-      <h1 className="text-2xl font-bold mb-4">Order Dashboard</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink
+              className="text-primary-600 max-md:text-xs font-bold"
+              href="/"
+            >
+              Home
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator className="text-primary-600 max-md:text-xs font-bold" />
+          <BreadcrumbItem>
+            <BreadcrumbPage className="text-primary-600 max-md:text-xs font-bold">
+              Orders
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
           <h2 className="text-md font-semibold mb-2">Total Orders</h2>
           <div className="text-2xl font-bold text-blue-600">{totalItems}</div>
@@ -313,12 +345,17 @@ const Page = () => {
             {stats.cancelled}
           </div>
         </div>
-      </div>
+      </div> */}
 
       <div className="mt-8">
-        <div className="justify-between flex items-center">
-          <h2 className="text-xl font-semibold mb-4">Order List</h2>
-          <Button onClick={fetchOrders}>Refresh Orders</Button>
+        <div className="justify-between flex items-center mb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold">Order List</h2>
+            <span className="text-primary-500">({totalItems})</span>
+          </div>
+          <div className="self-end ml-4">
+            <Input className="w-72" placeholder="Search" />
+          </div>
         </div>
         <div className="rounded-md border">
           <Table>

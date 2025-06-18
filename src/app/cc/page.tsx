@@ -23,7 +23,7 @@ import {
 } from "@tanstack/react-table";
 import { ArrowUpDown, Eye, MoreHorizontal, Power, Trash, Loader2 } from "lucide-react";
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Spinner } from "@/components/Spinner";
 import {
   Pagination,
@@ -44,7 +44,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
+import { userSearchService } from "@/services/user/userSearchService";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 interface CustomerCare {
   id: string;
   first_name: string;
@@ -78,6 +86,10 @@ const Page = () => {
   const [banReason, setBanReason] = useState("");
   const [selectedCCId, setSelectedCCId] = useState<string | null>(null);
   const [isBanLoading, setIsBanLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [customerCareSearchResult, setCustomerCareSearchResult] = useState<CustomerCare[]>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
   const handleStatusChange = async (id: string, shouldBan: boolean) => {
     if (shouldBan) {
@@ -134,6 +146,56 @@ const Page = () => {
       setIsBanLoading(false);
     }
   };
+
+  const handleSearch = async (query: string) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!query.trim()) {
+      setCustomerCareSearchResult([]);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const response = await userSearchService.searchUsers(query, 'customer_care');
+        if (response.EC === 0) {
+          // Convert UserSearchResult to CustomerCare type
+          const convertedResults: CustomerCare[] = response.data.results.map(user => ({
+            id: user.id,
+            first_name: user.first_name || '',
+            last_name: user.last_name || '',
+            active_point: 0,
+            avatar: user.avatar || { url: '', key: '' },
+            is_assigned: false,
+            available_for_work: true,
+            is_banned: false,
+            address: '',
+            contact_email: [{ email: user.user_email || '' }]
+          }));
+          setCustomerCareSearchResult(convertedResults);
+        } else {
+          setCustomerCareSearchResult([]);
+        }
+      } catch (error) {
+        console.error("Error searching customer care:", error);
+        setCustomerCareSearchResult([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  };
+
+  // Cleanup search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const columns: ColumnDef<CustomerCare>[] = [
     {
@@ -342,7 +404,7 @@ const Page = () => {
   }, [customerCare]);
 
   const table = useReactTable({
-    data: customerCare,
+    data: searchQuery ? customerCareSearchResult : customerCare,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -354,7 +416,24 @@ const Page = () => {
   return (
     <div className="p-4">
       {isLoading && <Spinner isVisible={isLoading} isOverlay />}
-      <h1 className="text-2xl font-bold mb-4">Customer Care Dashboard</h1>
+      <Breadcrumb className='mb-4'>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink
+              className="text-primary-600 max-md:text-xs font-bold"
+              href="/"
+            >
+              Home
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator className="text-primary-600 max-md:text-xs font-bold" />
+          <BreadcrumbItem>
+            <BreadcrumbPage className="text-primary-600 max-md:text-xs font-bold">
+              Customer Care Represetatives
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
@@ -376,10 +455,26 @@ const Page = () => {
       </div>
 
       <div className="mt-8">
-        <div className="justify-between flex items-center">
+        <div className="justify-between flex items-center mb-4">
           <h2 className="text-xl font-semibold mb-4">
             Customer Care Representatives
           </h2>
+          <div className="self-end relative">
+            <Input 
+              className="w-72" 
+              placeholder="Search" 
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                handleSearch(e.target.value);
+              }}
+            />
+            {isSearching && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+              </div>
+            )}
+          </div>
         </div>
         <div className="rounded-md border">
           <Table>

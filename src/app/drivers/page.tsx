@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   driverService,
   Driver,
@@ -55,11 +55,20 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { formatEpochToExactTime } from "@/utils/functions/formatTime";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import axiosInstance from "@/lib/axios";
 import { Loader2 } from "lucide-react";
+import { userSearchService } from "@/services/user/userSearchService";
 
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -79,6 +88,10 @@ export default function DriversPage() {
   const [banReason, setBanReason] = useState("");
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [isBanLoading, setIsBanLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [driversSearchResult, setDriversSearchResult] = useState<Driver[]>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     const totalCount = drivers.length;
@@ -370,8 +383,59 @@ export default function DriversPage() {
     },
   ];
 
+  const handleSearch = async (query: string) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!query.trim()) {
+      setDriversSearchResult([]);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const response = await userSearchService.searchUsers(query, 'driver');
+        if (response.EC === 0) {
+          // Convert UserSearchResult to Driver type
+          const convertedResults: Driver[] = response.data.results.map(user => ({
+            id: user.id,
+            first_name: user.first_name || '',
+            last_name: user.last_name || '',
+            contact_email: [{ email: user.user_email || '' }],
+            avatar: user.avatar || undefined,
+            available_for_work: true,
+            is_banned: false,
+            rating: {
+              average_rating: 0,
+              review_count: 0
+            }
+          }));
+          setDriversSearchResult(convertedResults);
+        } else {
+          setDriversSearchResult([]);
+        }
+      } catch (error) {
+        console.error("Error searching drivers:", error);
+        setDriversSearchResult([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  };
+
+  // Cleanup search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const table = useReactTable({
-    data: drivers,
+    data: searchQuery ? driversSearchResult : drivers,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -386,7 +450,24 @@ export default function DriversPage() {
   return (
     <div className="p-4">
       <Spinner isVisible={isLoading} isOverlay />
-      <h1 className="text-2xl font-bold mb-4">Driver Dashboard</h1>
+      <Breadcrumb className='mb-4'>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink
+              className="text-primary-600 max-md:text-xs font-bold"
+              href="/"
+            >
+              Home
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator className="text-primary-600 max-md:text-xs font-bold" />
+          <BreadcrumbItem>
+            <BreadcrumbPage className="text-primary-600 max-md:text-xs font-bold">
+              Restaurant Owner
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
@@ -408,8 +489,24 @@ export default function DriversPage() {
       </div>
 
       <div className="mt-8">
-        <div className="justify-between flex items-center">
+        <div className="justify-between flex items-center mb-4">
           <h2 className="text-xl font-semibold mb-4">Driver List</h2>
+          <div className="self-end relative">
+            <Input 
+              className="w-72" 
+              placeholder="Search" 
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                handleSearch(e.target.value);
+              }}
+            />
+            {isSearching && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+              </div>
+            )}
+          </div>
         </div>
         <div className="rounded-md border">
           <Table>

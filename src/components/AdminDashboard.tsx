@@ -116,31 +116,32 @@ const AdminDashboard = () => {
       )}
 
       <DashboardListCards data={dashboardCardsData} />
-
+     
       <div className="jb gap-4 max-lg:grid max-lg:grid-cols-1">
-        <div className="card lg:flex-1 fc">
-          <NetRevenueChart
-            netIncomeData={dashboardData?.net_income}
-            grossIncomeData={dashboardData?.gross_income}
+        <div className="card lg:flex-1 fc h-96">
+        <OrderStatsChart
+            orderStatsData={dashboardData?.order_stats}
             lastUpdated={lastUpdated}
           />
+       
         </div>
-        <div className="card lg:flex-1 fc">
+        <div className="card lg:flex-1 fc h-96">
           <UserGrowthRateChart
             userGrowthData={dashboardData?.user_growth_rate}
             lastUpdated={lastUpdated}
           />
         </div>
       </div>
-
       <div className="py-6">
         <div className="card fc">
-          <OrderStatsChart
-            orderStatsData={dashboardData?.order_stats}
+        <NetRevenueChart
+            netIncomeData={dashboardData?.net_income}
+            grossIncomeData={dashboardData?.gross_income}
             lastUpdated={lastUpdated}
           />
         </div>
       </div>
+ 
 
       <div className="py-6">
         <div className="card fc gap-4">
