@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axiosInstance from "@/lib/axios";
 import { DashboardData } from "@/types/dashboard.types";
+import {
+  createAdminSocket,
+  adminSocket,
+  disconnectAdminSocket,
+} from "@/lib/adminSocket";
+import { useAdminStore } from "@/stores/adminStore";
+import { toast } from "@/hooks/use-toast";
 
 interface UseLiveDashboardDataProps {
   date1?: Date;
   date2?: Date;
-  enablePolling?: boolean;
-  enableWebSocket?: boolean;
-  pollingInterval?: number; // in milliseconds
+  enableRealTimeUpdates?: boolean;
 }
 
 interface UseLiveDashboardDataReturn {
@@ -22,9 +27,7 @@ interface UseLiveDashboardDataReturn {
 export const useLiveDashboardData = ({
   date1,
   date2,
-  enablePolling = true,
-  enableWebSocket = false,
-  pollingInterval = 30000, // 30 seconds
+  enableRealTimeUpdates = true,
 }: UseLiveDashboardDataProps): UseLiveDashboardDataReturn => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
     null
@@ -34,9 +37,8 @@ export const useLiveDashboardData = ({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const isComponentMounted = useRef<boolean>(true);
+  const adminStore = useAdminStore();
 
   // Format date for API
   const formatDateForAPI = (date: Date): string => {
@@ -53,7 +55,7 @@ export const useLiveDashboardData = ({
         setError(null);
 
         const startDate = formatDateForAPI(date1);
-        
+
         // Add 1 day to the end date for the API query
         const endDatePlusOne = new Date(date2);
         endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
@@ -75,9 +77,9 @@ export const useLiveDashboardData = ({
       } catch (error: unknown) {
         console.error("Error fetching dashboard data:", error);
         if (isComponentMounted.current) {
-          const errorMessage = 
-            (error as any)?.response?.data?.EM || 
-            (error as any)?.message || 
+          const errorMessage =
+            (error as any)?.response?.data?.EM ||
+            (error as any)?.message ||
             "Network error";
           setError(errorMessage);
           setIsConnected(false);
@@ -96,108 +98,115 @@ export const useLiveDashboardData = ({
     fetchDashboardData(true);
   }, [fetchDashboardData]);
 
-  // Setup polling
+  // Initial data fetch
   useEffect(() => {
-    if (!enablePolling || !date1 || !date2) return;
+    if (!date1 || !date2) return;
 
-    // Initial fetch
+    // Initial fetch when component mounts or dates change
     fetchDashboardData(true);
+  }, [date1, date2, fetchDashboardData]);
 
-    // Setup interval for polling
-    intervalRef.current = setInterval(() => {
-      fetchDashboardData(false); // Don't show loading for background updates
-    }, pollingInterval);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [enablePolling, date1, date2, pollingInterval, fetchDashboardData]);
-
-  // Setup WebSocket connection
+  // Setup Socket.IO connection for real-time updates
   useEffect(() => {
-    if (!enableWebSocket) return;
+    if (
+      !enableRealTimeUpdates ||
+      !adminStore.isAuthenticated ||
+      !adminStore.user?.accessToken
+    ) {
+      console.log("Real-time updates disabled or not authenticated");
+      return;
+    }
 
-    const connectWebSocket = () => {
+    let adminSocketInstance: any = null;
+
+    const setupSocketConnection = async () => {
       try {
-        // Replace with your WebSocket endpoint
-        const wsUrl = "ws://localhost:1310/ws/dashboard";
-        wsRef.current = new WebSocket(wsUrl);
+        console.log(
+          "🔌 Setting up admin socket connection for dashboard updates"
+        );
+        console.log("🔍 Using token for admin:", {
+          tokenLength: adminStore.user!.accessToken.length,
+          startsWithEy: adminStore.user!.accessToken.startsWith("eyJ"),
+          userType: adminStore.user!.logged_in_as,
+        });
 
-        wsRef.current.onopen = () => {
-          console.log("✅ WebSocket connected for live dashboard updates");
+        adminSocketInstance = createAdminSocket(adminStore.user!.accessToken);
+
+        adminSocketInstance.on("connect", () => {
+          console.log("✅ Admin socket connected for dashboard updates");
+          console.log("🔍 Socket ID:", adminSocketInstance?.id);
           setIsConnected(true);
           setError(null);
+        });
 
-          // Send initial message with date range if needed
-          if (wsRef.current && date1 && date2) {
-            wsRef.current.send(
-              JSON.stringify({
-                type: "subscribe_dashboard",
-                start_date: formatDateForAPI(date1),
-                end_date: formatDateForAPI(date2),
-              })
+        adminSocketInstance.on("disconnect", () => {
+          console.log("❌ Admin socket disconnected");
+          setIsConnected(false);
+        });
+
+        adminSocketInstance.on("connect_error", (error: any) => {
+          console.error("❌ Admin socket connection error:", error);
+          console.error("🔍 Error details:", {
+            message: error.message,
+            type: error.type,
+            description: error.description,
+          });
+          setError("Failed to connect to real-time updates");
+          setIsConnected(false);
+        });
+
+        // Listen for newly created entity notifications
+        const handleNewlyCreatedEntity = (data: {
+          entity_name: string;
+          timestamp: number;
+          message: string;
+          event_type: string;
+        }) => {
+          // Refresh dashboard data when any new entity is created
+          if (isComponentMounted.current) {
+            console.log(
+              "🔄 Refreshing dashboard data due to new entity creation"
             );
+            fetchDashboardData(false); // Refresh data in background
+            setLastUpdated(new Date());
           }
         };
 
-        wsRef.current.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data);
+        adminSocket.onNewlyCreatedEntity(handleNewlyCreatedEntity);
 
-            if (message.type === "dashboard_update" && message.data) {
-              console.log("📊 Received live dashboard update:", message.data);
-              setDashboardData(message.data);
-              setLastUpdated(new Date());
-            }
-          } catch (error) {
-            console.error("Error parsing WebSocket message:", error);
-          }
-        };
-
-        wsRef.current.onclose = (event) => {
-          console.log("❌ WebSocket connection closed:", event.reason);
-          setIsConnected(false);
-
-          // Attempt to reconnect after 5 seconds
-          setTimeout(() => {
-            if (isComponentMounted.current) {
-              connectWebSocket();
-            }
-          }, 5000);
-        };
-
-        wsRef.current.onerror = (error) => {
-          console.error("WebSocket error:", error);
-          setError("WebSocket connection failed");
-          setIsConnected(false);
+        return () => {
+          adminSocket.offNewlyCreatedEntity(handleNewlyCreatedEntity);
         };
       } catch (error) {
-        console.error("Failed to create WebSocket connection:", error);
-        setError("Failed to establish WebSocket connection");
+        console.error("Failed to create admin socket connection:", error);
+        setError("Failed to establish real-time connection");
+        setIsConnected(false);
       }
     };
 
-    connectWebSocket();
+    const cleanup = setupSocketConnection();
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+      console.log("🧹 Cleaning up admin socket connection");
+      if (cleanup) {
+        cleanup.then((cleanupFn) => cleanupFn?.());
+      }
+      if (adminSocketInstance) {
+        adminSocketInstance.disconnect();
       }
     };
-  }, [enableWebSocket, date1, date2]);
+  }, [
+    enableRealTimeUpdates,
+    adminStore.isAuthenticated,
+    adminStore.user?.accessToken,
+    fetchDashboardData,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       isComponentMounted.current = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      disconnectAdminSocket();
     };
   }, []);
 
