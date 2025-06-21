@@ -10,6 +10,7 @@ import { IDashboardListCards } from "@/utils/sample/DashboardListCards";
 import { CardCategory } from "@/utils/constants/card";
 import { FaUsers, FaShoppingCart, FaGift, FaChartLine } from "react-icons/fa";
 import { useLiveDashboardData } from "@/hooks/useLiveDashboardData";
+import { LiveStatusIndicator } from "@/components/LiveStatusIndicator";
 
 const AdminDashboard = () => {
   const [date2, setDate2] = useState<Date | undefined>(new Date());
@@ -19,22 +20,18 @@ const AdminDashboard = () => {
     return date; // Return the updated Date object
   });
 
-  // Configuration for live data updates
-  const [enablePolling, setEnablePolling] = useState<boolean>(true);
-  const [enableWebSocket, setEnableWebSocket] = useState<boolean>(false);
-
-  // Use the live dashboard data hook
+  // Use the live dashboard data hook with real-time Socket.IO updates (server auth now fixed!)
   const {
     dashboardData,
     loading,
     error,
     lastUpdated,
+    isConnected,
+    refreshData,
   } = useLiveDashboardData({
     date1,
     date2,
-    enablePolling,
-    enableWebSocket,
-    pollingInterval: 30000000, // 30 seconds to match your backend
+    enableRealTimeUpdates: true, // Re-enable Socket.IO - server now reads auth.token
   });
 
   // Create dashboard cards data from real API data
@@ -67,10 +64,13 @@ const AdminDashboard = () => {
         {
           id: 5,
           type: "CHURN_RATE" as CardCategory,
-          value: `${(dashboardData.churn_rate?.metric * 100).toFixed(1)}%` || "0%",
+          value:
+            `${(dashboardData.churn_rate?.metric * 100).toFixed(1)}%` || "0%",
           label: "Churn Rate",
           icon: FaChartLine,
-          difference: dashboardData.churn_rate?.monthlyChanges ? (dashboardData.churn_rate.monthlyChanges) : -3,
+          difference: dashboardData.churn_rate?.monthlyChanges
+            ? dashboardData.churn_rate.monthlyChanges
+            : -3,
         },
       ]
     : [];
@@ -85,7 +85,17 @@ const AdminDashboard = () => {
         isDashboard
       />
 
-     
+      {/* Real-time Connection Status */}
+      <div className="flex items-center justify-center mb-4">
+        <LiveStatusIndicator
+          isConnected={isConnected}
+          lastUpdated={lastUpdated}
+          error={error}
+          loading={loading}
+          onRefresh={refreshData}
+          enableWebSocket={true}
+        />
+      </div>
 
       {/* Error State */}
       {error && !loading && (
@@ -116,14 +126,13 @@ const AdminDashboard = () => {
       )}
 
       <DashboardListCards data={dashboardCardsData} />
-     
+
       <div className="jb gap-4 max-lg:grid max-lg:grid-cols-1">
         <div className="card lg:flex-1 fc h-96">
-        <OrderStatsChart
+          <OrderStatsChart
             orderStatsData={dashboardData?.order_stats}
             lastUpdated={lastUpdated}
           />
-       
         </div>
         <div className="card lg:flex-1 fc h-96">
           <UserGrowthRateChart
@@ -134,14 +143,13 @@ const AdminDashboard = () => {
       </div>
       <div className="py-6">
         <div className="card fc">
-        <NetRevenueChart
+          <NetRevenueChart
             netIncomeData={dashboardData?.net_income}
             grossIncomeData={dashboardData?.gross_income}
             lastUpdated={lastUpdated}
           />
         </div>
       </div>
- 
 
       <div className="py-6">
         <div className="card fc gap-4">
