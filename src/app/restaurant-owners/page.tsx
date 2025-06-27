@@ -23,9 +23,7 @@ import {
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import {
-  restaurantService,
-} from "@/services/companion-admin/restaurantService";
+import { restaurantService } from "@/services/companion-admin/restaurantService";
 import { Spinner } from "@/components/Spinner";
 import {
   Dialog,
@@ -150,10 +148,14 @@ const Page = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState("");
-  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState<
+    string | null
+  >(null);
   const [isBanLoading, setIsBanLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [restaurantsSearchResult, setRestaurantsSearchResult] = useState<RestaurantData[]>([]);
+  const [restaurantsSearchResult, setRestaurantsSearchResult] = useState<
+    RestaurantData[]
+  >([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -166,7 +168,10 @@ const Page = () => {
 
     try {
       setIsLoading(true);
-      const response = await restaurantService.toggleRestaurantStatus(id, shouldBan);
+      const response = await restaurantService.toggleRestaurantStatus(
+        id,
+        shouldBan
+      );
       if (response.EC === 0) {
         setRestaurants((prevRestaurants) =>
           prevRestaurants.map((restaurant) =>
@@ -195,7 +200,10 @@ const Page = () => {
 
     try {
       setIsBanLoading(true);
-      const response = await axiosInstance.post(`admin/ban/Restaurant/${selectedRestaurantId}`, { reason: banReason });
+      const response = await axiosInstance.post(
+        `admin/ban/Restaurant/${selectedRestaurantId}`,
+        { reason: banReason }
+      );
 
       if (response.data.EC === 0) {
         setRestaurants((prevRestaurants) =>
@@ -345,13 +353,17 @@ const Page = () => {
       header: "Opening Hours",
       cell: ({ row }) => {
         const restaurant = row.original;
-        const today = new Date().toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+        const today = new Date()
+          .toLocaleDateString("en-US", { weekday: "short" })
+          .toLowerCase();
         const hours = restaurant.opening_hours?.[today];
-        
+
         const formatTime = (time: number) => {
           const hour = Math.floor(time / 100);
           const minute = time % 100;
-          return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+          return `${hour.toString().padStart(2, "0")}:${minute
+            .toString()
+            .padStart(2, "0")}`;
         };
 
         return (
@@ -477,6 +489,17 @@ const Page = () => {
     };
 
     fetchDrivers();
+
+    // Set up 30-second polling for live updates
+    const pollInterval = setInterval(() => {
+      console.log("🔄 Polling restaurants data...");
+      fetchRestaurantsForPolling();
+    }, 30000); // 30 seconds
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(pollInterval);
+    };
   }, [currentPage]);
 
   const handlePageChange = (page: number) => {
@@ -490,7 +513,11 @@ const Page = () => {
     const result = restaurantService.findAllPaginated(10, currentPage);
     result
       .then((res) => {
-        const { totalItems: items, totalPages: pages, items: restaurantItems } = res.data;
+        const {
+          totalItems: items,
+          totalPages: pages,
+          items: restaurantItems,
+        } = res.data;
         if (res.EC === 0) {
           setRestaurants(restaurantItems);
           setTotalItems(items);
@@ -507,6 +534,31 @@ const Page = () => {
       .finally(() => {
         setIsLoading(false);
       });
+  };
+
+  const fetchRestaurantsForPolling = async () => {
+    try {
+      const response = await restaurantService.findAllPaginated(
+        10,
+        currentPage
+      );
+      const {
+        totalItems: items,
+        totalPages: pages,
+        items: restaurantItems,
+      } = response.data;
+      if (response.EC === 0) {
+        setRestaurants(restaurantItems);
+        setTotalItems(items);
+        setTotalPages(pages);
+      } else {
+        console.error("API error:", response.EM);
+        setRestaurants([]);
+      }
+    } catch (error) {
+      console.error("Error fetching restaurants:", error);
+      setRestaurants([]);
+    }
   };
 
   useEffect(() => {
@@ -564,27 +616,38 @@ const Page = () => {
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const response = await userSearchService.searchUsers(query, 'restaurant');
+        const response = await userSearchService.searchUsers(
+          query,
+          "restaurant"
+        );
         if (response.EC === 0) {
           // Convert UserSearchResult to RestaurantData type
-          const convertedResults: RestaurantData[] = response.data.results.map(user => ({
-            id: user.id,
-            restaurant_name: user.restaurant_name || '',
-            owner_id: '',
-            owner_name: `${user.first_name || ''} ${user.last_name || ''}`,
-            description: null,
-            contact_email: [{ email: user.user_email || '', title: 'Primary', is_default: true }],
-            contact_phone: [],
-            avatar: user.avatar || undefined,
-            status: {
-              is_open: false,
-              is_active: true,
-              is_accepted_orders: true
-            },
-            opening_hours: {},
-            total_orders: 0,
-            is_banned: false
-          }));
+          const convertedResults: RestaurantData[] = response.data.results.map(
+            (user) => ({
+              id: user.id,
+              restaurant_name: user.restaurant_name || "",
+              owner_id: "",
+              owner_name: `${user.first_name || ""} ${user.last_name || ""}`,
+              description: null,
+              contact_email: [
+                {
+                  email: user.user_email || "",
+                  title: "Primary",
+                  is_default: true,
+                },
+              ],
+              contact_phone: [],
+              avatar: user.avatar || undefined,
+              status: {
+                is_open: false,
+                is_active: true,
+                is_accepted_orders: true,
+              },
+              opening_hours: {},
+              total_orders: 0,
+              is_banned: false,
+            })
+          );
           setRestaurantsSearchResult(convertedResults);
         } else {
           setRestaurantsSearchResult([]);
@@ -658,9 +721,9 @@ const Page = () => {
         <div className="justify-between flex items-center mb-4">
           <h2 className="text-xl font-semibold mb-4">Restaurant List</h2>
           <div className="self-end relative">
-            <Input 
-              className="w-72" 
-              placeholder="Search" 
+            <Input
+              className="w-72"
+              placeholder="Search"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -981,12 +1044,13 @@ const Page = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog  open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
+      <Dialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
         <DialogContent className="w-96">
           <DialogHeader>
             <DialogTitle>Ban Restaurant</DialogTitle>
             <DialogDescription>
-              Please provide a reason for banning this restaurant. This will be recorded for administrative purposes.
+              Please provide a reason for banning this restaurant. This will be
+              recorded for administrative purposes.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1011,7 +1075,7 @@ const Page = () => {
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleBanSubmit}
               disabled={!banReason.trim() || isBanLoading}
             >

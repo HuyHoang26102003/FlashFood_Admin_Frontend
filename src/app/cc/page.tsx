@@ -21,7 +21,14 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, Eye, MoreHorizontal, Power, Trash, Loader2 } from "lucide-react";
+import {
+  ArrowUpDown,
+  Eye,
+  MoreHorizontal,
+  Power,
+  Trash,
+  Loader2,
+} from "lucide-react";
 import Image from "next/image";
 import React, { useEffect, useState, useRef } from "react";
 import { Spinner } from "@/components/Spinner";
@@ -87,7 +94,9 @@ const Page = () => {
   const [selectedCCId, setSelectedCCId] = useState<string | null>(null);
   const [isBanLoading, setIsBanLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [customerCareSearchResult, setCustomerCareSearchResult] = useState<CustomerCare[]>([]);
+  const [customerCareSearchResult, setCustomerCareSearchResult] = useState<
+    CustomerCare[]
+  >([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -100,7 +109,10 @@ const Page = () => {
 
     try {
       setIsLoading(true);
-      const response = await customerCareService.toggleCustomerCareStatus(id, shouldBan);
+      const response = await customerCareService.toggleCustomerCareStatus(
+        id,
+        shouldBan
+      );
       if (response.EC === 0) {
         setCustomerCare((prevCC) =>
           prevCC.map((cc) =>
@@ -122,7 +134,10 @@ const Page = () => {
 
     try {
       setIsBanLoading(true);
-      const response = await axiosInstance.post(`admin/ban/CustomerCare/${selectedCCId}`, { reason: banReason });
+      const response = await axiosInstance.post(
+        `admin/ban/CustomerCare/${selectedCCId}`,
+        { reason: banReason }
+      );
 
       if (response.data.EC === 0) {
         setCustomerCare((prevCC) =>
@@ -160,21 +175,26 @@ const Page = () => {
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const response = await userSearchService.searchUsers(query, 'customer_care');
+        const response = await userSearchService.searchUsers(
+          query,
+          "customer_care"
+        );
         if (response.EC === 0) {
           // Convert UserSearchResult to CustomerCare type
-          const convertedResults: CustomerCare[] = response.data.results.map(user => ({
-            id: user.id,
-            first_name: user.first_name || '',
-            last_name: user.last_name || '',
-            active_point: 0,
-            avatar: user.avatar || { url: '', key: '' },
-            is_assigned: false,
-            available_for_work: true,
-            is_banned: false,
-            address: '',
-            contact_email: [{ email: user.user_email || '' }]
-          }));
+          const convertedResults: CustomerCare[] = response.data.results.map(
+            (user) => ({
+              id: user.id,
+              first_name: user.first_name || "",
+              last_name: user.last_name || "",
+              active_point: 0,
+              avatar: user.avatar || { url: "", key: "" },
+              is_assigned: false,
+              available_for_work: true,
+              is_banned: false,
+              address: "",
+              contact_email: [{ email: user.user_email || "" }],
+            })
+          );
           setCustomerCareSearchResult(convertedResults);
         } else {
           setCustomerCareSearchResult([]);
@@ -369,8 +389,15 @@ const Page = () => {
   const fetchCustomerCare = async () => {
     setIsLoading(true);
     try {
-      const response = await customerCareService.findAllPaginated(10, currentPage);
-      const { totalItems: items, totalPages: pages, items: ccItems } = response.data;
+      const response = await customerCareService.findAllPaginated(
+        10,
+        currentPage
+      );
+      const {
+        totalItems: items,
+        totalPages: pages,
+        items: ccItems,
+      } = response.data;
       if (response.EC === 0) {
         setCustomerCare(ccItems);
         setTotalItems(items);
@@ -386,14 +413,52 @@ const Page = () => {
     setIsLoading(false);
   };
 
+  const fetchCustomerCareForPolling = async () => {
+    try {
+      const response = await customerCareService.findAllPaginated(
+        10,
+        currentPage
+      );
+      const {
+        totalItems: items,
+        totalPages: pages,
+        items: ccItems,
+      } = response.data;
+      if (response.EC === 0) {
+        setCustomerCare(ccItems);
+        setTotalItems(items);
+        setTotalPages(pages);
+      } else {
+        console.error("API error:", response.EM);
+        setCustomerCare([]);
+      }
+    } catch (error) {
+      console.error("Error fetching customer care:", error);
+      setCustomerCare([]);
+    }
+  };
+
   useEffect(() => {
     setIsLoading(true);
     fetchCustomerCare();
+
+    // Set up 30-second polling for live updates
+    const pollInterval = setInterval(() => {
+      console.log("🔄 Polling customer care data...");
+      fetchCustomerCareForPolling();
+    }, 30000); // 30 seconds
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(pollInterval);
+    };
   }, [currentPage]);
 
   useEffect(() => {
     const totalCount = customerCare.length;
-    const activeCount = customerCare.filter((cc) => !cc.is_banned && cc.available_for_work).length;
+    const activeCount = customerCare.filter(
+      (cc) => !cc.is_banned && cc.available_for_work
+    ).length;
     const bannedCount = customerCare.filter((cc) => cc.is_banned).length;
 
     setStats({
@@ -416,7 +481,7 @@ const Page = () => {
   return (
     <div className="p-4">
       {isLoading && <Spinner isVisible={isLoading} isOverlay />}
-      <Breadcrumb className='mb-4'>
+      <Breadcrumb className="mb-4">
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink
@@ -460,9 +525,9 @@ const Page = () => {
             Customer Care Representatives
           </h2>
           <div className="self-end relative">
-            <Input 
-              className="w-72" 
-              placeholder="Search" 
+            <Input
+              className="w-72"
+              placeholder="Search"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -628,7 +693,8 @@ const Page = () => {
           <DialogHeader>
             <DialogTitle>Ban Customer Care Representative</DialogTitle>
             <DialogDescription>
-              Please provide a reason for banning this customer care representative. This will be recorded for administrative purposes.
+              Please provide a reason for banning this customer care
+              representative. This will be recorded for administrative purposes.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -653,7 +719,7 @@ const Page = () => {
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleBanSubmit}
               disabled={!banReason.trim() || isBanLoading}
             >
