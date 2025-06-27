@@ -178,7 +178,9 @@ interface ComplaintHistory {
 const Page = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [customersSearchResult, setCustomersSearchResult] = useState<Customer[]>([]);
+  const [customersSearchResult, setCustomersSearchResult] = useState<
+    Customer[]
+  >([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -201,18 +203,31 @@ const Page = () => {
   >([]);
   const [isComplaintHistoryLoading, setIsComplaintHistoryLoading] =
     useState(false);
-    
-    const [currentPage, setCurrentPage] = useState(1);
+
+  const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState("");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    null
+  );
   const [isBanLoading, setIsBanLoading] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
     fetchCustomers();
+
+    // Set up 30-second polling for live updates
+    const pollInterval = setInterval(() => {
+      console.log("🔄 Polling customers data...");
+      fetchCustomersForPolling();
+    }, 30000); // 30 seconds
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(pollInterval);
+    };
   }, [currentPage]);
 
   const fetchCustomers = async () => {
@@ -221,7 +236,11 @@ const Page = () => {
       const response = await customerService.findAllPaginated(10, currentPage);
       console.log("hceck res", response);
       if (response.EC === 0) {
-        const { totalItems: items, totalPages: pages, items: customerItems } = response.data;
+        const {
+          totalItems: items,
+          totalPages: pages,
+          items: customerItems,
+        } = response.data;
         setCustomers(customerItems);
         setTotalItems(items);
         setTotalPages(pages);
@@ -235,10 +254,33 @@ const Page = () => {
     setIsLoading(false);
   };
 
+  const fetchCustomersForPolling = async () => {
+    try {
+      const response = await customerService.findAllPaginated(10, currentPage);
+      if (response.EC === 0) {
+        const {
+          totalItems: items,
+          totalPages: pages,
+          items: customerItems,
+        } = response.data;
+        setCustomers(customerItems);
+        setTotalItems(items);
+        setTotalPages(pages);
+      } else {
+        console.error("API error:", response.EM);
+        setCustomers([]);
+      }
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    }
+  };
+
   useEffect(() => {
     const totalCount = customers.length;
     const activeCount = customers.filter(
-      (c) => !c.is_banned && !(Math.floor(Date.now() / 1000) - c.last_login > 2592000)
+      (c) =>
+        !c.is_banned &&
+        !(Math.floor(Date.now() / 1000) - c.last_login > 2592000)
     ).length;
     const bannedCount = customers.filter((c) => c.is_banned).length;
 
@@ -333,7 +375,10 @@ const Page = () => {
 
     try {
       setIsBanLoading(true);
-      const response = await axiosInstance.post(`admin/ban/Customer/${selectedCustomerId}`, { reason: banReason });
+      const response = await axiosInstance.post(
+        `admin/ban/Customer/${selectedCustomerId}`,
+        { reason: banReason }
+      );
 
       if (response.data.EC === 0) {
         setCustomers((prevCustomers) =>
@@ -452,12 +497,19 @@ const Page = () => {
             <span
               className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
               ${
-                customer.is_banned ? "bg-red-100 text-red-800" : (Math.floor(Date.now() / 1000) - customer.last_login > 2592000 ? 'bg-yellow-100 text-yellow-800' : "bg-green-100 text-green-800")
+                customer.is_banned
+                  ? "bg-red-100 text-red-800"
+                  : Math.floor(Date.now() / 1000) - customer.last_login >
+                    2592000
+                  ? "bg-yellow-100 text-yellow-800"
+                  : "bg-green-100 text-green-800"
               }`}
             >
-              {customer.is_banned ?
-                 "Banned"
-                : (Math.floor(Date.now() / 1000) - customer.last_login > 2592000 ? 'Inactive' : "Active")}
+              {customer.is_banned
+                ? "Banned"
+                : Math.floor(Date.now() / 1000) - customer.last_login > 2592000
+                ? "Inactive"
+                : "Active"}
             </span>
           </div>
         );
@@ -534,23 +586,27 @@ const Page = () => {
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const response = await userSearchService.searchUsers(query, 'customer');
+        const response = await userSearchService.searchUsers(query, "customer");
         if (response.EC === 0) {
           // Convert UserSearchResult to Customer type
-          const convertedResults: Customer[] = response.data.results.map(user => ({
-            id: user.id,
-            first_name: user.first_name || '',
-            last_name: user.last_name || '',
-            email: user.email || '',
-            phone_number: '',
-            address: [],
-            avatar: user.avatar || { url: '', key: '' },
-            user: {
-              email: user.user_email || ''
-            },
-            last_login: user.last_login ? Math.floor(new Date(user.last_login).getTime() / 1000) : 0,
-            is_banned: false
-          }));
+          const convertedResults: Customer[] = response.data.results.map(
+            (user) => ({
+              id: user.id,
+              first_name: user.first_name || "",
+              last_name: user.last_name || "",
+              email: user.email || "",
+              phone_number: "",
+              address: [],
+              avatar: user.avatar || { url: "", key: "" },
+              user: {
+                email: user.user_email || "",
+              },
+              last_login: user.last_login
+                ? Math.floor(new Date(user.last_login).getTime() / 1000)
+                : 0,
+              is_banned: false,
+            })
+          );
           setCustomersSearchResult(convertedResults);
         } else {
           setCustomersSearchResult([]);
@@ -589,7 +645,7 @@ const Page = () => {
   return (
     <div className="p-4">
       <Spinner isVisible={isLoading} isOverlay />
-      <Breadcrumb className='mb-4'>
+      <Breadcrumb className="mb-4">
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink
@@ -633,9 +689,9 @@ const Page = () => {
         <div className="justify-between flex items-center mb-4">
           <h2 className="text-xl font-semibold mb-4">Customer List</h2>
           <div className="self-end relative">
-            <Input 
-              className="w-72" 
-              placeholder="Search" 
+            <Input
+              className="w-72"
+              placeholder="Search"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -1220,7 +1276,8 @@ const Page = () => {
           <DialogHeader>
             <DialogTitle>Ban Customer</DialogTitle>
             <DialogDescription>
-              Please provide a reason for banning this customer. This will be recorded for administrative purposes.
+              Please provide a reason for banning this customer. This will be
+              recorded for administrative purposes.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1245,7 +1302,7 @@ const Page = () => {
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleBanSubmit}
               disabled={!banReason.trim() || isBanLoading}
             >

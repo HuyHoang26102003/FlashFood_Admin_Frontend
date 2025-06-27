@@ -95,7 +95,9 @@ export default function DriversPage() {
 
   useEffect(() => {
     const totalCount = drivers.length;
-    const activeCount = drivers.filter((d) => !d.is_banned && d.available_for_work).length;
+    const activeCount = drivers.filter(
+      (d) => !d.is_banned && d.available_for_work
+    ).length;
     const bannedCount = drivers.filter((d) => d.is_banned).length;
 
     setStats({
@@ -109,7 +111,11 @@ export default function DriversPage() {
     try {
       console.log("Fetching page:", currentPage);
       const response = await driverService.findAllPaginated(10, currentPage);
-      const { totalItems: items, totalPages: pages, items: driverItems } = response.data;
+      const {
+        totalItems: items,
+        totalPages: pages,
+        items: driverItems,
+      } = response.data;
       if (response.EC === 0) {
         setDrivers(driverItems);
         setTotalItems(items);
@@ -125,9 +131,42 @@ export default function DriversPage() {
     setIsLoading(false);
   };
 
+  const fetchDriversForPolling = async () => {
+    try {
+      const response = await driverService.findAllPaginated(10, currentPage);
+      const {
+        totalItems: items,
+        totalPages: pages,
+        items: driverItems,
+      } = response.data;
+      if (response.EC === 0) {
+        setDrivers(driverItems);
+        setTotalItems(items);
+        setTotalPages(pages);
+      } else {
+        console.error("API error:", response.EM);
+        setDrivers([]);
+      }
+    } catch (error) {
+      console.error("Error fetching drivers:", error);
+      setDrivers([]);
+    }
+  };
+
   useEffect(() => {
     setIsLoading(true);
     fetchDrivers();
+
+    // Set up 30-second polling for live updates
+    const pollInterval = setInterval(() => {
+      console.log("🔄 Polling drivers data...");
+      fetchDriversForPolling();
+    }, 30000); // 30 seconds
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(pollInterval);
+    };
   }, [currentPage]);
 
   const handleViewOrders = async (driver: Driver) => {
@@ -168,7 +207,10 @@ export default function DriversPage() {
 
     try {
       setIsBanLoading(true);
-      const response = await axiosInstance.post(`admin/ban/Driver/${selectedDriverId}`, { reason: banReason });
+      const response = await axiosInstance.post(
+        `admin/ban/Driver/${selectedDriverId}`,
+        { reason: banReason }
+      );
 
       if (response.data.EC === 0) {
         setDrivers((prevDrivers) =>
@@ -296,7 +338,11 @@ export default function DriversPage() {
           <div className="text-center">
             <span
               className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                driver.is_banned ? "bg-red-100 text-red-800" : !driver.available_for_work  ? 'bg-yellow-100 text-yellow-800' : "bg-green-100 text-green-800"
+                driver.is_banned
+                  ? "bg-red-100 text-red-800"
+                  : !driver.available_for_work
+                  ? "bg-yellow-100 text-yellow-800"
+                  : "bg-green-100 text-green-800"
               }`}
             >
               {driver.is_banned
@@ -396,22 +442,24 @@ export default function DriversPage() {
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const response = await userSearchService.searchUsers(query, 'driver');
+        const response = await userSearchService.searchUsers(query, "driver");
         if (response.EC === 0) {
           // Convert UserSearchResult to Driver type
-          const convertedResults: Driver[] = response.data.results.map(user => ({
-            id: user.id,
-            first_name: user.first_name || '',
-            last_name: user.last_name || '',
-            contact_email: [{ email: user.user_email || '' }],
-            avatar: user.avatar || undefined,
-            available_for_work: true,
-            is_banned: false,
-            rating: {
-              average_rating: 0,
-              review_count: 0
-            }
-          }));
+          const convertedResults: Driver[] = response.data.results.map(
+            (user) => ({
+              id: user.id,
+              first_name: user.first_name || "",
+              last_name: user.last_name || "",
+              contact_email: [{ email: user.user_email || "" }],
+              avatar: user.avatar || undefined,
+              available_for_work: true,
+              is_banned: false,
+              rating: {
+                average_rating: 0,
+                review_count: 0,
+              },
+            })
+          );
           setDriversSearchResult(convertedResults);
         } else {
           setDriversSearchResult([]);
@@ -450,7 +498,7 @@ export default function DriversPage() {
   return (
     <div className="p-4">
       <Spinner isVisible={isLoading} isOverlay />
-      <Breadcrumb className='mb-4'>
+      <Breadcrumb className="mb-4">
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink
@@ -492,9 +540,9 @@ export default function DriversPage() {
         <div className="justify-between flex items-center mb-4">
           <h2 className="text-xl font-semibold mb-4">Driver List</h2>
           <div className="self-end relative">
-            <Input 
-              className="w-72" 
-              placeholder="Search" 
+            <Input
+              className="w-72"
+              placeholder="Search"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -554,7 +602,7 @@ export default function DriversPage() {
           </Table>
         </div>
         <div className="mt-4">
-        <Pagination>
+          <Pagination>
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
@@ -877,7 +925,8 @@ export default function DriversPage() {
           <DialogHeader>
             <DialogTitle>Ban Driver</DialogTitle>
             <DialogDescription>
-              Please provide a reason for banning this driver. This will be recorded for administrative purposes.
+              Please provide a reason for banning this driver. This will be
+              recorded for administrative purposes.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -902,7 +951,7 @@ export default function DriversPage() {
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleBanSubmit}
               disabled={!banReason.trim() || isBanLoading}
             >
