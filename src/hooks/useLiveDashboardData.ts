@@ -8,6 +8,7 @@ import {
 } from "@/lib/adminSocket";
 import { useAdminStore } from "@/stores/adminStore";
 import { toast } from "@/hooks/use-toast";
+import { useNotificationStore } from "@/stores/notificationStore";
 
 interface UseLiveDashboardDataProps {
   date1?: Date;
@@ -39,6 +40,7 @@ export const useLiveDashboardData = ({
 
   const isComponentMounted = useRef<boolean>(true);
   const adminStore = useAdminStore();
+  const notificationStore = useNotificationStore();
 
   // Format date for API
   const formatDateForAPI = (date: Date): string => {
