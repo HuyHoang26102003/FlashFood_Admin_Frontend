@@ -21,10 +21,7 @@ export const AD_ADMIN_SIDEBAR_ITEMS: sideBarItem[] = [
     title: "Restaurant Owner Statistics",
     link: "/restaurant-owners",
   },
-  {
-    title: "Orders Statistics",
-    link: "/orders",
-  },
+
   {
     title: "Customer Care Team",
     dropdownItem: [
@@ -37,6 +34,10 @@ export const AD_ADMIN_SIDEBAR_ITEMS: sideBarItem[] = [
         link: "/cc/inquiries",
       },
     ],
+  },
+  {
+    title: "Orders Statistics",
+    link: "/orders",
   },
   {
     title: "App Managers",
