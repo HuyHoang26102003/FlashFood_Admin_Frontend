@@ -21,6 +21,7 @@ interface DashboardTableProps {
   sold_promotions?: MetricData;
   total_users?: MetricData;
   period_type?: string;
+  highlightMetric?: string;
 }
 
 export function DashboardTable({
@@ -33,6 +34,7 @@ export function DashboardTable({
   sold_promotions,
   total_users,
   period_type,
+  highlightMetric,
 }: DashboardTableProps) {
   // Create table data based on real metrics when available, or fallback to sample data
   const tableData = [
@@ -42,7 +44,9 @@ export function DashboardTable({
         average_delivery_time !== undefined && average_delivery_time.metric > 0
           ? `${Math.round(average_delivery_time.metric / 60)} minutes`
           : "N/A",
-      changePercent: average_delivery_time?.monthlyChanges ? parseFloat((average_delivery_time.monthlyChanges / 60).toFixed(1)) : 0,
+      changePercent: average_delivery_time?.monthlyChanges
+        ? parseFloat((average_delivery_time.monthlyChanges / 60).toFixed(1))
+        : 0,
       changeType: average_delivery_time?.changeType || "real",
       description: "Average time taken for delivery (converted from seconds)",
       isPositiveChange: (average_delivery_time?.monthlyChanges || 0) <= 0,
@@ -50,19 +54,23 @@ export function DashboardTable({
     {
       metric: "Overall Customer Satisfaction",
       value:
-        average_customer_satisfaction !== undefined && average_customer_satisfaction.metric > 0
+        average_customer_satisfaction !== undefined &&
+        average_customer_satisfaction.metric > 0
           ? `${average_customer_satisfaction.metric.toFixed(1)}/5`
           : "Not Available",
       changePercent: average_customer_satisfaction?.monthlyChanges || 0,
       changeType: average_customer_satisfaction?.changeType || "real",
       description: "Aggregate rating based on customer feedback",
-      isPositiveChange: (average_customer_satisfaction?.monthlyChanges || 0) >= 0,
+      isPositiveChange:
+        (average_customer_satisfaction?.monthlyChanges || 0) >= 0,
     },
     {
       metric: "Churn Rate",
       value:
-        churn_rate !== undefined ? `${(churn_rate.metric * 100).toFixed(1)}%` : "N/A",
-      changePercent: churn_rate?.monthlyChanges ? (churn_rate.monthlyChanges) : 0,
+        churn_rate !== undefined
+          ? `${(churn_rate.metric * 100).toFixed(1)}%`
+          : "N/A",
+      changePercent: churn_rate?.monthlyChanges ? churn_rate.monthlyChanges : 0,
       changeType: churn_rate?.changeType || "percentage",
       description: "Percentage of users who are not active for 1 month",
       isPositiveChange: (churn_rate?.monthlyChanges || 0) <= 0,
@@ -73,7 +81,9 @@ export function DashboardTable({
         order_cancellation_rate !== undefined
           ? `${(order_cancellation_rate.metric * 100).toFixed(1)}%`
           : "N/A",
-      changePercent: order_cancellation_rate?.monthlyChanges ? (order_cancellation_rate.monthlyChanges) : 0,
+      changePercent: order_cancellation_rate?.monthlyChanges
+        ? order_cancellation_rate.monthlyChanges
+        : 0,
       changeType: order_cancellation_rate?.changeType || "percentage",
       description: "Percentage of orders canceled before delivery",
       isPositiveChange: (order_cancellation_rate?.monthlyChanges || 0) <= 0,
@@ -140,7 +150,14 @@ export function DashboardTable({
       </TableHeader>
       <TableBody>
         {tableData.map((item) => (
-          <TableRow key={item.metric}>
+          <TableRow
+            key={item.metric}
+            className={
+              item.metric.toLowerCase() === highlightMetric?.toLowerCase()
+                ? "bg-success-50 animate-pulse"
+                : ""
+            }
+          >
             <TableCell className="font-medium text-primary-700">
               {item.metric}
             </TableCell>
@@ -151,7 +168,9 @@ export function DashboardTable({
               }`}
             >{`${item.changePercent > 0 ? "+" : ""}${Number(
               item.changePercent
-            ).toFixed(2)}${item.changeType === "percentage" ? "%" : ""}`}</TableCell>
+            ).toFixed(2)}${
+              item.changeType === "percentage" ? "%" : ""
+            }`}</TableCell>
             <TableCell className="text-neutral-500">
               {item.description}
             </TableCell>

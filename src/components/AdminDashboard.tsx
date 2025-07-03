@@ -11,6 +11,10 @@ import { CardCategory } from "@/utils/constants/card";
 import { FaUsers, FaShoppingCart, FaGift, FaChartLine } from "react-icons/fa";
 import { useLiveDashboardData } from "@/hooks/useLiveDashboardData";
 import { LiveStatusIndicator } from "@/components/LiveStatusIndicator";
+import { adminSocket } from "@/lib/adminSocket";
+
+// Add highlight effect duration (ms)
+const HIGHLIGHT_DURATION = 4000;
 
 const AdminDashboard = () => {
   const [date2, setDate2] = useState<Date | undefined>(new Date());
@@ -33,6 +37,46 @@ const AdminDashboard = () => {
     date2,
     enableRealTimeUpdates: true, // Re-enable Socket.IO - server now reads auth.token
   });
+
+  // === Highlight state management ===
+  const [highlightCardTypes, setHighlightCardTypes] = useState<CardCategory[]>(
+    []
+  );
+  const [highlightMetric, setHighlightMetric] = useState<string>();
+
+  React.useEffect(() => {
+    const handleNewEntity = (data: { entity_name: string }) => {
+      const ent = data.entity_name.toLowerCase();
+
+      // Determine highlight targets based on entity type
+      if (ent === "order") {
+        setHighlightCardTypes(["TOTAL_ORDERS"]);
+      } else if (
+        [
+          "driver",
+          "restaurant",
+          "restaurant_owner",
+          "customer",
+          "customer_care",
+          "customer_care_representative",
+        ].includes(ent)
+      ) {
+        setHighlightCardTypes(["TOTAL_USERS"]);
+        setHighlightMetric("Total Users");
+      }
+
+      // Reset highlights after a short duration
+      setTimeout(() => {
+        setHighlightCardTypes([]);
+        setHighlightMetric(undefined);
+      }, HIGHLIGHT_DURATION);
+    };
+
+    adminSocket.onNewlyCreatedEntity(handleNewEntity);
+    return () => {
+      adminSocket.offNewlyCreatedEntity(handleNewEntity);
+    };
+  }, []);
 
   // Create dashboard cards data from real API data
   const dashboardCardsData: IDashboardListCards[] = dashboardData
@@ -125,7 +169,10 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      <DashboardListCards data={dashboardCardsData} />
+      <DashboardListCards
+        data={dashboardCardsData}
+        highlightTypes={highlightCardTypes}
+      />
 
       <div className="jb gap-4 max-lg:grid max-lg:grid-cols-1">
         <div className="card lg:flex-1 fc h-96">
@@ -155,6 +202,7 @@ const AdminDashboard = () => {
         <div className="card fc gap-4">
           <h1 className="text-xl font-bold">Key Performance</h1>
           <DashboardTable
+            highlightMetric={highlightMetric}
             orderStats={dashboardData?.order_stats}
             churn_rate={dashboardData?.churn_rate}
             average_delivery_time={dashboardData?.average_delivery_time}

@@ -167,10 +167,27 @@ export const createAdminSocket = (token: string | null) => {
 
     // Show toast only if notification is enabled for this entity type
     if (shouldShowNotification) {
+      // Determine vertical offset for toast to avoid overlap between categories
+      const offsetMap: Record<string, number> = {
+        customer_care: 0,
+        customer_care_representative: 0,
+        driver: 80,
+        restaurant: 160,
+        restaurant_owner: 160,
+        customer: 240,
+        order: 320,
+      };
+
+      const baseEntity = data.entity_name.toLowerCase();
+      const offset = offsetMap[baseEntity] ?? 0;
+
       toast({
         title: "New Entity Created",
         description: data.message || `New ${data.entity_name} has been created`,
         variant: "default",
+        style: {
+          marginTop: `${offset}px`,
+        },
       });
     }
   });
