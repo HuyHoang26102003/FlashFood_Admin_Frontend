@@ -21,6 +21,7 @@ import { Toaster } from "@/components/ui/toaster";
 
 import MainNav from "@/components/Nav/MainNav";
 import SideBar from "@/components/Nav/SideBar";
+import ChatbotWrapper from "@/components/ChatbotWrapper";
 
 export default function RootLayout({
   children,
@@ -38,9 +39,10 @@ export default function RootLayout({
             <div className="col-span-10 bg-white/50 backdrop-blur-sm p-6 overflow-auto">
               <MainNav />
               {children}
-              <Toaster />
             </div>
           </div>
+          <Toaster />
+          <ChatbotWrapper />
         </div>
       </body>
     </html>
