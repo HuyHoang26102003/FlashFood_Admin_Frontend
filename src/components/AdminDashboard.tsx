@@ -11,6 +11,9 @@ import { CardCategory } from "@/utils/constants/card";
 import { FaUsers, FaShoppingCart, FaGift, FaChartLine } from "react-icons/fa";
 import { useLiveDashboardData } from "@/hooks/useLiveDashboardData";
 import { LiveStatusIndicator } from "@/components/LiveStatusIndicator";
+import { useEntityNotifications } from "@/hooks/useEntityNotifications";
+import { EntityNotificationContainer } from "@/components/EntityNotificationContainer";
+import { useNotificationStore } from "@/stores/notificationStore";
 import { adminSocket } from "@/lib/adminSocket";
 
 // Add highlight effect duration (ms)
@@ -44,8 +47,20 @@ const AdminDashboard = () => {
   );
   const [highlightMetric, setHighlightMetric] = useState<string>();
 
+  // === New notification system ===
+  const { notifications, addNotification, removeNotification } =
+    useEntityNotifications();
+  const notificationPreferences = useNotificationStore(
+    (state) => state.preferences
+  );
+
   React.useEffect(() => {
-    const handleNewEntity = (data: { entity_name: string }) => {
+    const handleNewEntity = (data: {
+      entity_name: string;
+      timestamp: number;
+      message: string;
+      event_type: string;
+    }) => {
       const ent = data.entity_name.toLowerCase();
 
       // Determine highlight targets based on entity type
@@ -70,13 +85,56 @@ const AdminDashboard = () => {
         setHighlightCardTypes([]);
         setHighlightMetric(undefined);
       }, HIGHLIGHT_DURATION);
+
+      // === Add notification based on preferences ===
+      let shouldShowNotification = false;
+
+      // Map entity types to notification preferences (fix case sensitivity)
+      switch (ent) {
+        case "order":
+          shouldShowNotification = notificationPreferences.orders;
+          break;
+        case "restaurant":
+        case "restaurant_owner":
+          shouldShowNotification = notificationPreferences.restaurants;
+          break;
+        case "customer":
+          shouldShowNotification = notificationPreferences.customers;
+          break;
+        case "driver":
+          shouldShowNotification = notificationPreferences.drivers;
+          break;
+        case "customer_care":
+        case "customer_care_representative":
+          shouldShowNotification = notificationPreferences.customerCare;
+          break;
+        case "inquiry":
+        case "customer_care_inquiry":
+          shouldShowNotification =
+            notificationPreferences.customerCareInquiries;
+          break;
+        default:
+          // For unknown entity types, show if any notifications are enabled
+          shouldShowNotification = Object.values(notificationPreferences).some(
+            Boolean
+          );
+          break;
+      }
+
+      if (shouldShowNotification) {
+        addNotification({
+          entity_name: data.entity_name,
+          message: data.message,
+          timestamp: data.timestamp,
+        });
+      }
     };
 
     adminSocket.onNewlyCreatedEntity(handleNewEntity);
     return () => {
       adminSocket.offNewlyCreatedEntity(handleNewEntity);
     };
-  }, []);
+  }, [addNotification, notificationPreferences]);
 
   // Create dashboard cards data from real API data
   const dashboardCardsData: IDashboardListCards[] = dashboardData
@@ -121,6 +179,12 @@ const AdminDashboard = () => {
 
   return (
     <div className="fc">
+      {/* Entity Notifications */}
+      <EntityNotificationContainer
+        notifications={notifications}
+        onRemove={removeNotification}
+      />
+
       <PageTitle
         date1={date1}
         setDate1={setDate1}

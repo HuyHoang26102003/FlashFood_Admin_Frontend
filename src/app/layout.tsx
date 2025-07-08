@@ -30,6 +30,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          src="https://cdn.botpress.cloud/webchat/v3.0/inject.js"
+          defer
+        ></script>
+        <script
+          src="https://files.bpcontent.cloud/2025/07/05/05/20250705050149-5BH9VC3H.js"
+          defer
+        ></script>
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gradient-to-tr from-indigo-200 to-green-200 min-h-screen m-0 flex items-center justify-center`}
       >
@@ -42,7 +52,7 @@ export default function RootLayout({
             </div>
           </div>
           <Toaster />
-          <ChatbotWrapper />
+          {/* <ChatbotWrapper /> */}
         </div>
       </body>
     </html>

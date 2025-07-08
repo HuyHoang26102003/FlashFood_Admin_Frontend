@@ -1,5 +1,4 @@
 import { io, Socket } from "socket.io-client";
-import { toast } from "@/hooks/use-toast";
 import { API_IP, API_PORT } from "@/constants/links";
 import { useNotificationStore } from "@/stores/notificationStore";
 
@@ -66,16 +65,6 @@ export const createAdminSocket = (token: string | null) => {
       (response: any) => {
         if (response?.success) {
           console.log("✅ Successfully joined admin_global room");
-          // Check notification preferences before showing toast
-          const notificationPreferences =
-            useNotificationStore.getState().preferences;
-          if (notificationPreferences.customerCare) {
-            toast({
-              title: "Real-time Updates Active",
-              description: "Dashboard is now receiving live updates",
-              variant: "default",
-            });
-          }
         } else {
           console.error("❌ Failed to join admin_global room:", response);
         }
@@ -86,15 +75,6 @@ export const createAdminSocket = (token: string | null) => {
   adminSocketInstance.on("connect_error", (error) => {
     console.error("❌ Admin socket connection error:", error.message, error);
     console.error("🔍 Full error object:", error);
-    // Check notification preferences before showing toast
-    const notificationPreferences = useNotificationStore.getState().preferences;
-    if (notificationPreferences.customerCare) {
-      toast({
-        title: "Connection Error",
-        description: "Failed to connect to real-time updates",
-        variant: "destructive",
-      });
-    }
   });
 
   adminSocketInstance.on("disconnect", (reason) => {
@@ -103,16 +83,6 @@ export const createAdminSocket = (token: string | null) => {
       console.error(
         "Server disconnected the admin socket. Possible causes: invalid token, missing auth header, or server-side validation failure."
       );
-      // Check notification preferences before showing toast
-      const notificationPreferences =
-        useNotificationStore.getState().preferences;
-      if (notificationPreferences.customerCare) {
-        toast({
-          title: "Connection Lost",
-          description: "Real-time updates have been disconnected",
-          variant: "destructive",
-        });
-      }
     }
   });
 
@@ -120,76 +90,10 @@ export const createAdminSocket = (token: string | null) => {
     console.error("❌ Admin socket server error:", error);
   });
 
-  // Listen for newly created entity notifications
+  // Listen for newly created entity notifications - but don't show toasts here
+  // Let components handle their own notifications to avoid duplicates
   adminSocketInstance.on("newly_created_entity_notification", (data) => {
-    if (data.entity_name === "Order") {
-      console.log("📊 Received order created:", data);
-    }
-
-    // Check notification preferences before showing toast
-    const notificationPreferences = useNotificationStore.getState().preferences;
-    let shouldShowNotification = false;
-    console.log(
-      "🔍 Notification preferences:",
-      data.entity_name.toLowerCase(),
-      notificationPreferences.restaurants
-    );
-    // Map entity types to notification preferences
-    switch (data.entity_name.toLowerCase()) {
-      case "order":
-        shouldShowNotification = notificationPreferences.orders;
-        break;
-      case "restaurant":
-      case "restaurant_owner":
-        shouldShowNotification = notificationPreferences.restaurants;
-        break;
-      case "customer":
-        shouldShowNotification = notificationPreferences.customers;
-        break;
-      case "driver":
-        shouldShowNotification = notificationPreferences.drivers;
-        break;
-      case "customer_care":
-      case "customer_care_representative":
-        shouldShowNotification = notificationPreferences.customerCare;
-        break;
-      case "inquiry":
-      case "customer_care_inquiry":
-        shouldShowNotification = notificationPreferences.customerCareInquiries;
-        break;
-      default:
-        // For unknown entity types, check if any notifications are enabled
-        shouldShowNotification = Object.values(notificationPreferences).some(
-          Boolean
-        );
-        break;
-    }
-
-    // Show toast only if notification is enabled for this entity type
-    if (shouldShowNotification) {
-      // Determine vertical offset for toast to avoid overlap between categories
-      const offsetMap: Record<string, number> = {
-        customer_care: 0,
-        customer_care_representative: 0,
-        driver: 80,
-        restaurant: 160,
-        restaurant_owner: 160,
-        customer: 240,
-        order: 320,
-      };
-
-      const baseEntity = data.entity_name.toLowerCase();
-      const offset = offsetMap[baseEntity] ?? 0;
-
-      toast({
-        title: "New Entity Created",
-        description: data.message || `New ${data.entity_name} has been created`,
-        variant: "default",
-        style: {
-          marginTop: `${offset}px`,
-        },
-      });
-    }
+    console.log("📊 Received entity notification:", data.entity_name, data);
   });
 
   return adminSocketInstance;

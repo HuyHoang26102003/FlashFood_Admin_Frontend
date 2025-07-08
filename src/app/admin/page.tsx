@@ -143,12 +143,13 @@ const Page = () => {
       const newCurrentPermissions = checked
         ? [...prev.currentPermissions, permission]
         : prev.currentPermissions.filter((p) => p !== permission);
-      
+
       // Calculate if this is a real change from original state
-      const wasOriginallyChecked = prev.originalPermissions.includes(permission);
-      
+      const wasOriginallyChecked =
+        prev.originalPermissions.includes(permission);
+
       let newChangedPermissions = [...prev.changedPermissions];
-      
+
       if (wasOriginallyChecked !== checked) {
         // This permission was changed by the user
         if (!newChangedPermissions.includes(permission)) {
@@ -156,9 +157,11 @@ const Page = () => {
         }
       } else {
         // This permission was changed back to its original state
-        newChangedPermissions = newChangedPermissions.filter(p => p !== permission);
+        newChangedPermissions = newChangedPermissions.filter(
+          (p) => p !== permission
+        );
       }
-      
+
       return {
         ...prev,
         currentPermissions: newCurrentPermissions,
@@ -172,25 +175,29 @@ const Page = () => {
 
     // Only send the permissions that were actually changed by the user
     const changedPermissions = dialogState.changedPermissions;
-    
+
     // We need to know which permissions to add and which to remove
-    const permissionsToUpdate = dialogState.changedPermissions.map(permission => {
-      return {
-        permission,
-        action: dialogState.currentPermissions.includes(permission) ? 'add' : 'remove'
-      };
-    });
+    const permissionsToUpdate = dialogState.changedPermissions.map(
+      (permission) => {
+        return {
+          permission,
+          action: dialogState.currentPermissions.includes(permission)
+            ? "add"
+            : "remove",
+        };
+      }
+    );
 
     try {
       setIsSaving(true);
       console.log("Changed permissions:", changedPermissions);
       console.log("Permissions to update:", permissionsToUpdate);
-      
+
       const response = await superAdminService.updateAdminPermissions(
         dialogState.admin.id,
         {
           permissions: changedPermissions,
-          requesterId: user.id,
+          // requesterId: user.id,
         }
       );
 
@@ -219,9 +226,9 @@ const Page = () => {
       });
     } finally {
       setIsSaving(false);
-      setDialogState({ 
-        isOpen: false, 
-        admin: null, 
+      setDialogState({
+        isOpen: false,
+        admin: null,
         originalPermissions: [],
         currentPermissions: [],
         changedPermissions: [],
@@ -230,9 +237,9 @@ const Page = () => {
   };
 
   const handleCancelPermissions = () => {
-    setDialogState({ 
-      isOpen: false, 
-      admin: null, 
+    setDialogState({
+      isOpen: false,
+      admin: null,
       originalPermissions: [],
       currentPermissions: [],
       changedPermissions: [],
@@ -297,10 +304,7 @@ const Page = () => {
             onOpenChange={(open) => setOpenPopoverId(open ? admin.id : null)}
           >
             <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-8 w-8 p-0 hover:bg-gray-100"
-              >
+              <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-gray-100">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
@@ -393,9 +397,7 @@ const Page = () => {
           }
         }}
       >
-        <DialogContent
-          className="w-full overflow-y-auto max-h-[80vh]"
-        >
+        <DialogContent className="w-full overflow-y-auto max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Manage Permissions</DialogTitle>
             <DialogDescription>
@@ -406,13 +408,12 @@ const Page = () => {
           <div className="py-4">
             <div className="space-y-2">
               {Object.values(AdminPermission).map((permission) => (
-                <div
-                  key={permission}
-                  className="flex items-center space-x-2"
-                >
+                <div key={permission} className="flex items-center space-x-2">
                   <Checkbox
                     id={permission}
-                    checked={dialogState.currentPermissions.includes(permission)}
+                    checked={dialogState.currentPermissions.includes(
+                      permission
+                    )}
                     onCheckedChange={(checked) => {
                       if (typeof checked === "boolean") {
                         handlePermissionChange(permission, checked);
@@ -437,14 +438,14 @@ const Page = () => {
                 {dialogState.changedPermissions.length} permission(s) changed
               </p>
             )}
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleCancelPermissions}
               disabled={isSaving}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleSavePermissions}
               disabled={dialogState.changedPermissions.length === 0 || isSaving}
             >
