@@ -185,7 +185,7 @@ export default function StartDirectChatDialog({
         )}
       </DialogTrigger>
 
-      <DialogContent className="bg-red-300 w-96">
+      <DialogContent className="00 w-96">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">

@@ -193,3 +193,23 @@ export interface TypingIndicator {
   roomId: string;
   isTyping: boolean;
 }
+
+export interface GetRoomMessagesPayload {
+  roomId: string;
+  limit?: number;
+  offset?: number;
+  beforeMessageId?: string;
+}
+
+export interface RoomMessagesResponse {
+  roomId: string;
+  messages: AdminChatMessage[];
+  hasMore: boolean;
+  total: number;
+  pagination: {
+    limit: number;
+    offset: number;
+    beforeMessageId: string | null;
+  };
+  timestamp: string;
+}

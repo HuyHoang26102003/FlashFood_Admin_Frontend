@@ -93,7 +93,7 @@ export const useAdminChatSocket = (token: string | null) => {
     const trimmedToken = token.trim();
     console.log("Creating admin chat socket connection");
 
-    const socketInstance = io(`${API_IP}:${API_PORT}/admin-chat`, {
+    const socketInstance = io(`${API_IP}:${API_PORT}/admin-chatbot`, {
       transports: ["websocket"],
       auth: {
         token: `Bearer ${trimmedToken}`,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAdminStore } from "@/stores/adminStore";
 import { useCustomerCareStore } from "@/stores/customerCareStore";
 import {
@@ -15,7 +15,7 @@ import {
 } from "@/types/admin-chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -32,12 +32,36 @@ import {
   Video,
   Paperclip,
   Smile,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import CreateGroupDialog from "@/components/AdminChat/CreateGroupDialog";
 import StartDirectChatDialog from "@/components/AdminChat/StartDirectChatDialog";
 import axiosInstance from "@/lib/axios";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import InviteToGroupDialog from "@/components/AdminChat/InviteToGroupDialog";
+
+interface MentionUser {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  userType: string;
+  avatar?: string;
+  roleInChat: string;
+}
+
+interface TaggedUser {
+  id: string; // This will be the userId
+  name: string;
+  startIndex: number;
+  endIndex: number;
+}
 
 export default function InternalChatPage() {
   const [chatRooms, setChatRooms] = useState<AdminChatRoom[]>([]);
@@ -48,6 +72,15 @@ export default function InternalChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const [openInviteDialog, setOpenInviteDialog] = useState(false);
+
+  // Mention states
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionUsers, setMentionUsers] = useState<MentionUser[]>([]);
+  const [taggedUsers, setTaggedUsers] = useState<TaggedUser[]>([]);
+  const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
 
   const adminUser = useAdminStore((state) => state.user);
   const customerCareUser = useCustomerCareStore((state) => state.user);
@@ -55,6 +88,13 @@ export default function InternalChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<any>(null);
+  const selectedRoomRef = useRef<AdminChatRoom | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keep the ref updated with the latest selectedRoom state
+  useEffect(() => {
+    selectedRoomRef.current = selectedRoom;
+  }, [selectedRoom]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -63,6 +103,144 @@ export default function InternalChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Debounced search for mentions
+  const searchMentionUsers = useCallback(async (query: string) => {
+    if (query.length < 1 || !selectedRoomRef.current) {
+      setMentionUsers([]);
+      return;
+    }
+
+    try {
+      const response = await axiosInstance.get(
+        `/group-chat/${selectedRoomRef.current.id}/members?keyword=${query}`
+      );
+      if (response.data.EC === 0) {
+        setMentionUsers(response.data.data);
+      } else {
+        setMentionUsers([]);
+      }
+    } catch (error) {
+      console.error("Error searching mention users:", error);
+      setMentionUsers([]);
+    }
+  }, []);
+
+  // Handle @ detection and mention popup
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const cursorPosition = e.target.selectionStart || 0;
+
+    setNewMessage(value);
+
+    // Only allow mentions in group chats
+    if (selectedRoom?.type !== "ADMIN_GROUP") {
+      return;
+    }
+
+    // Check for @ mentions
+    const lastAtIndex = value.lastIndexOf("@", cursorPosition - 1);
+    const spaceAfterAt = value.indexOf(" ", lastAtIndex);
+
+    if (
+      lastAtIndex !== -1 &&
+      (spaceAfterAt === -1 || spaceAfterAt >= cursorPosition)
+    ) {
+      const query = value.substring(lastAtIndex + 1, cursorPosition);
+      if (!query.includes(" ")) {
+        setMentionQuery(query);
+        setShowMentions(true);
+        setActiveMentionIndex(0);
+        searchMentionUsers(query);
+
+        // Calculate popup position
+        const input = inputRef.current;
+        if (input) {
+          const rect = input.getBoundingClientRect();
+          setMentionPosition({
+            top: rect.top - 200,
+            left: rect.left,
+          });
+        }
+      } else {
+        setShowMentions(false);
+      }
+    } else {
+      setShowMentions(false);
+    }
+  };
+
+  // Handle mention selection
+  const selectMention = (user: MentionUser) => {
+    const cursorPosition = inputRef.current?.selectionStart || 0;
+    const lastAtIndex = newMessage.lastIndexOf("@", cursorPosition - 1);
+
+    if (lastAtIndex !== -1) {
+      const beforeAt = newMessage.substring(0, lastAtIndex);
+      const afterMention = newMessage.substring(cursorPosition);
+      const mentionText = `@${user.firstName} ${user.lastName}`;
+      const newText = beforeAt + mentionText + " " + afterMention;
+
+      setNewMessage(newText);
+      setShowMentions(false);
+
+      // Track tagged user
+      const taggedUser: TaggedUser = {
+        id: user.userId,
+        name: `${user.firstName} ${user.lastName}`,
+        startIndex: lastAtIndex,
+        endIndex: lastAtIndex + mentionText.length,
+      };
+
+      setTaggedUsers((prev) => [...prev, taggedUser]);
+
+      // Focus back to input
+      setTimeout(() => {
+        if (inputRef.current) {
+          const newCursorPos = lastAtIndex + mentionText.length + 1;
+          inputRef.current.focus();
+          inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      }, 0);
+    }
+  };
+
+  // Handle keyboard navigation in mentions
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showMentions && mentionUsers.length > 0) {
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setActiveMentionIndex((prev) =>
+            prev < mentionUsers.length - 1 ? prev + 1 : 0
+          );
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setActiveMentionIndex((prev) =>
+            prev > 0 ? prev - 1 : mentionUsers.length - 1
+          );
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (mentionUsers[activeMentionIndex]) {
+            selectMention(mentionUsers[activeMentionIndex]);
+          }
+          break;
+        case "Escape":
+          setShowMentions(false);
+          break;
+      }
+    } else if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  // Remove tagged user when text is modified
+  const removeTaggedUser = (userId: string) => {
+    setTaggedUsers((prev) => prev.filter((user) => user.id !== userId));
+  };
 
   useEffect(() => {
     if (!currentUser?.accessToken) {
@@ -85,7 +263,10 @@ export default function InternalChatPage() {
 
         adminChatSocket.onNewMessage(socket, (message) => {
           console.log("New message received:", message);
-          if (selectedRoom && message.roomId === selectedRoom.id) {
+          if (
+            selectedRoomRef.current &&
+            message.roomId === selectedRoomRef.current.id
+          ) {
             setMessages((prev) => [...prev, message]);
           }
           // Update chat rooms list with latest message
@@ -119,10 +300,26 @@ export default function InternalChatPage() {
           );
         });
 
+        adminChatSocket.onRoomMessages(socket, (data) => {
+          console.log("Received room messages:", data);
+          if (data.roomId === selectedRoomRef.current?.id) {
+            setMessages(data.messages);
+          }
+        });
+
+        adminChatSocket.onRoomMessagesError(socket, (error) => {
+          console.error("Error receiving room messages:", error);
+        });
+
+        adminChatSocket.onUserTagged(socket, (data) => {
+          console.log("User tagged:", data);
+          // Handle user tagged notifications
+        });
+
         adminChatSocket.onTyping(socket, (data) => {
           if (
-            selectedRoom &&
-            data.roomId === selectedRoom.id &&
+            selectedRoomRef.current &&
+            data.roomId === selectedRoomRef.current.id &&
             data.userId !== currentUser.id
           ) {
             setTypingUsers((prev) => new Set(prev).add(data.userName));
@@ -130,7 +327,10 @@ export default function InternalChatPage() {
         });
 
         adminChatSocket.onStopTyping(socket, (data) => {
-          if (selectedRoom && data.roomId === selectedRoom.id) {
+          if (
+            selectedRoomRef.current &&
+            data.roomId === selectedRoomRef.current.id
+          ) {
             setTypingUsers((prev) => {
               const newSet = new Set(prev);
               newSet.delete(data.userName);
@@ -161,7 +361,7 @@ export default function InternalChatPage() {
         socketRef.current.disconnect();
       }
     };
-  }, [currentUser?.accessToken, selectedRoom?.id, currentUser?.id]);
+  }, [currentUser?.accessToken, currentUser?.id]);
 
   const loadChatRooms = async () => {
     if (!socketRef.current) return;
@@ -180,15 +380,19 @@ export default function InternalChatPage() {
   };
 
   const selectRoom = async (room: AdminChatRoom) => {
-    if (!socketRef.current) return;
+    if (!socketRef.current || room.id === selectedRoom?.id) return;
 
     try {
       setSelectedRoom(room);
-      const response = await adminChatSocket.joinRoom(socketRef.current, {
+      setMessages([]); // Clear messages while loading new room
+      await adminChatSocket.joinRoom(socketRef.current, {
         roomId: room.id,
         roomType: room.type,
       });
-      setMessages(response.messages || []);
+      adminChatSocket.getRoomMessages(socketRef.current, {
+        roomId: room.id,
+        limit: 50,
+      });
     } catch (error) {
       console.error("Error joining room:", error);
     }
@@ -198,22 +402,26 @@ export default function InternalChatPage() {
     if (!newMessage.trim() || !selectedRoom || !socketRef.current) return;
 
     try {
-      await adminChatSocket.sendMessage(socketRef.current, {
+      const payload = {
         roomId: selectedRoom.id,
         content: newMessage.trim(),
         messageType: MessageType.TEXT,
-      });
+        taggedUsers:
+          taggedUsers.length > 0
+            ? taggedUsers.map((user) => user.id)
+            : undefined,
+      };
+
+      await adminChatSocket.sendMessage(socketRef.current, payload);
       setNewMessage("");
+      setTaggedUsers([]);
     } catch (error) {
       console.error("Error sending message:", error);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+    handleKeyDown(e);
   };
 
   const startDirectChat = async (withAdminId: string) => {
@@ -257,7 +465,7 @@ export default function InternalChatPage() {
 
   useEffect(() => {
     const fetchAdminUsers = async () => {
-      const response = await axiosInstance.get("/admin");
+      const response = await axiosInstance.get("/admin/internal-users/search");
       const { EC, EM, data } = response.data;
       console.log("check data", data);
     };
@@ -278,15 +486,55 @@ export default function InternalChatPage() {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Mentions Popup */}
+      {showMentions && mentionUsers.length > 0 && (
+        <div
+          className="fixed z-50 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto"
+          style={{
+            top: mentionPosition.top,
+            left: mentionPosition.left,
+            width: "300px",
+          }}
+        >
+          {mentionUsers.map((user, index) => (
+            <div
+              key={user.userId}
+              className={cn(
+                "flex items-center space-x-3 p-3 cursor-pointer hover:bg-gray-100",
+                index === activeMentionIndex && "bg-blue-50"
+              )}
+              onClick={() => selectMention(user)}
+            >
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user.avatar} />
+                <AvatarFallback>
+                  {user.firstName[0]}
+                  {user.lastName[0]}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <p className="font-medium text-sm">
+                  {user.firstName} {user.lastName}
+                </p>
+                <p className="text-xs text-gray-500">{user.email}</p>
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {user.userType}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Sidebar */}
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-semibold text-gray-900">
+        <div className="p-4 border-b border-gray-200 ">
+          <div className="flex items-center  justify-between mb-4">
+            <h1 className="text-xl w-1/2 font-semibold text-gray-900">
               Internal Chat
             </h1>
-            <div className="flex items-center space-x-2">
+            <div className="flex w-1/2 items-center space-x-2 ">
               <CreateGroupDialog
                 socket={socketRef.current}
                 onGroupCreated={(group) => {
@@ -456,9 +704,28 @@ export default function InternalChatPage() {
                   <Button variant="ghost" size="sm">
                     <Video className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
+                  <Popover onOpenChange={() => {}}>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-48"
+                      align="end"
+                      side="left"
+                      sideOffset={5}
+                    >
+                      <InviteToGroupDialog
+                        onInviteSent={() => {
+                          // can add logic here to refetch room data or show a toast
+                          console.log("Invitations sent!");
+                        }}
+                        socket={socketRef.current}
+                        groupId={selectedRoom?.id || ""}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </div>
@@ -543,6 +810,28 @@ export default function InternalChatPage() {
 
             {/* Message Input */}
             <div className="p-4 border-t border-gray-200 bg-white">
+              {/* Tagged Users Display */}
+              {taggedUsers.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {taggedUsers.map((user) => (
+                    <Badge
+                      key={user.id}
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
+                      @{user.name}
+                      <button
+                        type="button"
+                        onClick={() => removeTaggedUser(user.id)}
+                        className="rounded-full hover:bg-gray-300"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-end space-x-3">
                 <Button variant="ghost" size="sm">
                   <Paperclip className="h-5 w-5" />
@@ -550,9 +839,10 @@ export default function InternalChatPage() {
 
                 <div className="flex-1">
                   <Input
-                    placeholder="Type your message..."
+                    ref={inputRef}
+                    placeholder="Type your message... Use @ to mention someone"
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={handleInputChange}
                     onKeyPress={handleKeyPress}
                     className="resize-none"
                   />

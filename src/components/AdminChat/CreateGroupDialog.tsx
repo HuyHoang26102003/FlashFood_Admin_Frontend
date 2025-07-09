@@ -154,7 +154,7 @@ export default function CreateGroupDialog({
         )}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md w-96">
+      <DialogContent className="sm:max-w-md overflow-y-auto h-[90%] w-96">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">

@@ -9,6 +9,8 @@ import {
   GetAdminChatsPayload,
   PendingInvitation,
   TypingIndicator,
+  GetRoomMessagesPayload,
+  RoomMessagesResponse,
 } from "@/types/admin-chat";
 
 let adminChatSocketInstance: Socket | null = null;
@@ -323,7 +325,6 @@ export const adminChatSocket = {
     return new Promise<{
       success: boolean;
       room: AdminChatRoom;
-      messages: AdminChatMessage[];
     }>((resolve, reject) => {
       console.log("Emitting joinRoom event", payload);
 
@@ -335,7 +336,6 @@ export const adminChatSocket = {
             | {
                 success: boolean;
                 room: AdminChatRoom;
-                messages: AdminChatMessage[];
               }
             | { error: string }
         ) => {
@@ -411,6 +411,23 @@ export const adminChatSocket = {
 
   onStopTyping: (socket: Socket, callback: (data: TypingIndicator) => void) => {
     socket.on("stopTyping", callback);
+  },
+
+  // Message history
+  getRoomMessages: (socket: Socket, payload: GetRoomMessagesPayload) => {
+    console.log("Emitting getRoomMessages event", payload);
+    socket.emit("getRoomMessages", payload);
+  },
+
+  onRoomMessages: (
+    socket: Socket,
+    callback: (data: RoomMessagesResponse) => void
+  ) => {
+    socket.on("roomMessages", callback);
+  },
+
+  onRoomMessagesError: (socket: Socket, callback: (error: any) => void) => {
+    socket.on("roomMessagesError", callback);
   },
 
   // Read receipts
