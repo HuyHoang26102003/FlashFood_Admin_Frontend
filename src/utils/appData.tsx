@@ -40,6 +40,10 @@ export const AD_ADMIN_SIDEBAR_ITEMS: sideBarItem[] = [
     link: "/orders",
   },
   {
+    title: "Internal Chat",
+    link: "/internal-chat",
+  },
+  {
     title: "App Managers",
     dropdownItem: [
       {
@@ -70,6 +74,10 @@ export const AD_SIDEBAR_ITEMS_CUSTOMER_CARE: sideBarItem[] = [
   {
     title: "F-Chats",
     link: "/chats",
+  },
+  {
+    title: "Internal Chat",
+    link: "/internal-chat",
   },
   {
     title: "Orders",
