@@ -14,6 +14,7 @@ import {
   TaggedUserDetail,
   PendingInvitation,
   OrderReference,
+  AdminChatParticipant,
 } from "@/types/admin-chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,11 +48,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import InviteToGroupDialog from "@/components/AdminChat/InviteToGroupDialog";
 import { Socket } from "socket.io-client";
 import { useToast } from "@/hooks/use-toast";
 import GroupSettingsDialog from "@/components/AdminChat/GroupSettingsDialog";
 import OrderReferenceDialog from "@/components/AdminChat/OrderReferenceDialog";
+import OrderHoverContent from "@/components/AdminChat/OrderHoverContent";
+import UserHoverContent from "@/components/AdminChat/UserHoverContent";
 
 interface MentionUser {
   userId: string;
@@ -68,6 +76,16 @@ interface TaggedUser {
   name: string;
   startIndex: number;
   endIndex: number;
+}
+
+interface GroupSettingsUpdate {
+  groupId: string;
+  newSettings: Partial<AdminChatRoom>;
+}
+
+interface RemovedFromGroupUpdate {
+  groupId: string;
+  reason: string;
 }
 
 export default function InternalChatPage() {
@@ -371,6 +389,58 @@ export default function InternalChatPage() {
           }
         });
 
+        adminChatSocket.onGroupSettingsUpdated(
+          socket,
+          (data: GroupSettingsUpdate) => {
+            setChatRooms((prev) =>
+              prev.map((r) =>
+                r.id === data.groupId ? { ...r, ...data.newSettings } : r
+              )
+            );
+            if (selectedRoomRef.current?.id === data.groupId) {
+              setSelectedRoom((prev) =>
+                prev ? { ...prev, ...data.newSettings } : null
+              );
+            }
+            toast({
+              title: "Group Updated",
+              description: "The group settings have been successfully updated.",
+            });
+          }
+        );
+
+        adminChatSocket.onParticipantManaged(
+          socket,
+          (data: { room: AdminChatRoom; action: string; participant: AdminChatParticipant }) => {
+            const { room: updatedRoom, participant, action } = data;
+            
+            setChatRooms((prev) =>
+              prev.map((r) => (r.id === updatedRoom.id ? updatedRoom : r))
+            );
+
+            if (selectedRoomRef.current?.id === updatedRoom.id) {
+              setSelectedRoom(updatedRoom);
+            }
+            
+            toast({
+              title: "Participant Update",
+              description: `User ${participant.name || 'member'} was ${action.toLowerCase()} in "${updatedRoom.groupName}".`,
+            });
+          }
+        );
+
+        socket.on("removedFromGroup", (data: RemovedFromGroupUpdate) => {
+          if (selectedRoomRef.current?.id === data.groupId) {
+            setSelectedRoom(null);
+          }
+          setChatRooms(prev => prev.filter(r => r.id !== data.groupId));
+          toast({
+            title: "You've been removed",
+            description: data.reason || "You have been removed from a group.",
+            variant: "destructive"
+          });
+        });
+
         adminChatSocket.onRoomMessages(socket, (data) => {
           console.log("Received room messages:", data);
           if (data.roomId === selectedRoomRef.current?.id) {
@@ -381,6 +451,15 @@ export default function InternalChatPage() {
 
         adminChatSocket.onRoomMessagesError(socket, (error) => {
           console.error("Error receiving room messages:", error);
+          setIsMessagesLoading(false);
+        });
+        adminChatSocket.onInvitationError(socket, (error) => {
+          console.error("Error sending invitation:", error);
+          toast({
+            title: "Error",
+            description: error.message || error.error,
+            variant: "destructive",
+          });
           setIsMessagesLoading(false);
         });
 
@@ -628,23 +707,42 @@ export default function InternalChatPage() {
     content: string,
     taggedUsersDetails?: TaggedUserDetail[]
   ) => {
-    if (!taggedUsersDetails?.length) {
+    if (!taggedUsersDetails || taggedUsersDetails.length === 0) {
       return <span>{content}</span>;
     }
+  
+    const userMap = new Map(taggedUsersDetails.map(u => [u.fullName, u]));
+    const names = taggedUsersDetails.map(u => u.fullName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
+    
+    if (names.length === 0) {
+        return <span>{content}</span>;
+    }
 
-    const mentionElements = taggedUsersDetails.map((user) => (
-      <strong
-        key={user.id}
-        className="text-blue-500 font-semibold bg-blue-200 px-1 rounded-sm mr-1"
-      >
-        {`@${user.fullName}`}
-      </strong>
-    ));
+    const regex = new RegExp(`@(${names.join('|')})`, 'g');
+    const parts = content.split(regex);
 
     return (
       <span>
-        {mentionElements}
-        {content}
+        {parts.map((part, index) => {
+          if (index % 2 === 1) { // This will be the full name captured by the regex
+            const user = userMap.get(part);
+            if (user) {
+              return (
+                <HoverCard key={`${user.id}-${index}`}>
+                  <HoverCardTrigger>
+                    <strong className="text-blue-500 font-semibold bg-blue-200 px-1 rounded-sm cursor-pointer">
+                      {`@${user.fullName}`}
+                    </strong>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-auto p-0">
+                    <UserHoverContent userId={user.id} />
+                  </HoverCardContent>
+                </HoverCard>
+              );
+            }
+          }
+          return part;
+        })}
       </span>
     );
   };
@@ -709,10 +807,11 @@ export default function InternalChatPage() {
     );
   }
 
+
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex mt-4 max-h-[calc(100vh-10rem)]">
       {/* Sidebar */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-80 mr-2 bg-white border-r border-gray-200 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 ">
           <div className="flex items-center  justify-between mb-4">
@@ -816,14 +915,15 @@ export default function InternalChatPage() {
           </div>
         )}
 
+
         {/* Chat List */}
-        <ScrollArea className="flex-1">
-          <div className="p-2">
+        <ScrollArea className="flex-1 w-full ">
+          <div className="p-2 w-full">
             {filteredRooms.map((room) => (
               <Card
                 key={room.id}
                 className={cn(
-                  "p-3 mb-2 cursor-pointer transition-colors hover:bg-gray-50",
+                  "p-3 mb-2 w-72 mx-auto cursor-pointer transition-colors hover:bg-gray-50",
                   selectedRoom?.id === room.id && "bg-blue-50 border-blue-200"
                 )}
                 onClick={() => selectRoom(room)}
@@ -888,7 +988,7 @@ export default function InternalChatPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 bg-gray-50 flex flex-col">
         {selectedRoom ? (
           <>
             {/* Chat Header */}
@@ -954,6 +1054,7 @@ export default function InternalChatPage() {
                           <GroupSettingsDialog
                             room={selectedRoom}
                             socket={socketRef.current}
+                            currentUserId={currentUser?.id || ""}
                             trigger={
                               <Button
                                 variant="ghost"
@@ -991,96 +1092,151 @@ export default function InternalChatPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        "flex items-end gap-2 group",
-                        msg.senderId === currentUser?.id
-                          ? "justify-end"
-                          : "justify-start"
-                      )}
-                    >
-                      {msg.senderId !== currentUser?.id && msg.senderDetails && (
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage
-                            src={msg.senderDetails.avatar?.url}
-                            alt={msg.senderDetails.name}
-                            className="bg-primary-400"
-                          />
-                          <AvatarFallback>
-                            {msg.senderDetails.name
-                              ?.split(" ")
-                              .map((n: string) => n[0])
-                              .join("")
-                              .toUpperCase() || "???"}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div className="flex items-end gap-2 max-w-md">
-                        <div
-                          className={cn(
-                            "p-3 rounded-lg",
-                            msg.senderId === currentUser?.id
-                              ? "bg-primary text-primary-foreground rounded-br-none"
-                              : "bg-info-100 text-muted-foreground rounded-bl-none"
+                  {messages.map((msg) => {
+                    const replyInfo = msg.replyToMessage
+                      ? {
+                          senderName: msg.replyToMessage.senderDetails?.name,
+                          content: msg.replyToMessage.content,
+                        }
+                      : msg.replyToMessageDetails
+                      ? {
+                          senderName: msg.replyToMessageDetails.senderName,
+                          content: msg.replyToMessageDetails.content,
+                        }
+                      : null;
+
+                    return (
+                      <div
+                        key={msg.id}
+                        className={cn(
+                          "flex items-end gap-2 group",
+                          msg.senderId === currentUser?.id
+                            ? "justify-end"
+                            : "justify-start"
+                        )}
+                      >
+                        {msg.senderId !== currentUser?.id &&
+                          msg.senderDetails && (
+                            <Avatar className="w-8 h-8">
+                              <AvatarImage
+                                src={msg.senderDetails.avatar}
+                                alt={msg.senderDetails.name}
+                                className="bg-primary-400"
+                              />
+                              <AvatarFallback>
+                                {msg.senderDetails.name
+                                  ?.split(" ")
+                                  .map((n: string) => n[0])
+                                  .join("")
+                                  .toUpperCase() || "???"}
+                              </AvatarFallback>
+                            </Avatar>
                           )}
-                        >
-                          {msg.senderId !== currentUser?.id && msg.senderDetails && (
-                            <p className="text-xs font-bold mb-1 text-primary">
-                              {msg.senderDetails.name || "Unknown User"}
-                            </p>
-                          )}
-                          {msg.replyToMessageDetails && (
-                            <div className="mb-2 p-2 bg-black/10 rounded border-l-2 border-primary">
-                              <p className="text-xs font-medium text-blue-200">
-                                Replying to {msg.replyToMessageDetails.senderName}
-                              </p>
-                              <p className="text-xs opacity-75 truncate">
-                                {msg.replyToMessageDetails.content}
-                              </p>
-                            </div>
-                          )}
-                          {msg.orderReference && (
-                            <div className="mb-2 p-2 bg-orange-100 rounded border-l-2 border-orange-500">
-                              <div className="flex items-center gap-1 mb-1">
-                                <Package className="h-3 w-3" />
-                                <p className="text-xs font-medium text-orange-700">
-                                  Order Reference
-                                </p>
-                              </div>
-                              <p className="text-xs text-orange-600">
-                                #{msg.orderReference.orderId} • {msg.orderReference.customerName}
-                              </p>
-                              {msg.orderReference.issueDescription && (
-                                <p className="text-xs text-orange-600 mt-1">
-                                  {msg.orderReference.issueDescription}
+                        <div className="flex items-end gap-2 max-w-md">
+                          <div
+                            className={cn(
+                              "p-3 rounded-lg",
+                              msg.senderId === currentUser?.id
+                                ? "bg-primary text-primary-foreground rounded-br-none"
+                                : "bg-info-100 text-muted-foreground rounded-bl-none"
+                            )}
+                          >
+                            {msg.senderId !== currentUser?.id &&
+                              msg.senderDetails && (
+                                <p className="text-xs font-bold mb-1 text-primary">
+                                  {msg.senderDetails.name || "Unknown User"}
                                 </p>
                               )}
-                            </div>
-                          )}
-                          <p className="text-sm break-words">
-                            {renderMessageContent(
-                              msg.content,
-                              msg.taggedUsersDetails
+                            {replyInfo && (
+                              <div className="mb-2 p-2 bg-black/10 rounded border-l-2 border-primary">
+                                <p className={cn("text-xs font-medium", msg.senderId === currentUser?.id ? "text-gray-200" : "text-gray-700")}>
+                                  Replying to{" "}
+                                  {replyInfo.senderName || "Unknown User"}
+                                </p>
+                                <p className="text-xs opacity-75  truncate">
+                                  {replyInfo.content}
+                                </p>
+                              </div>
                             )}
-                          </p>
-                          <p className="text-xs text-right mt-1 opacity-70">
-                            {formatTime(msg.timestamp)}
-                          </p>
+                            {msg.taggedUsersDetails &&
+                              msg.taggedUsersDetails.length > 0 && (
+                                <div className="mb-2 p-2 bg-blue-100 rounded border-l-2 border-blue-500">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Users className="h-4 w-4 text-blue-700" />
+                                    <p className="text-xs font-medium text-blue-700">
+                                      Tagged Users
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {msg.taggedUsersDetails.map((user) => (
+                                      <HoverCard key={user.id}>
+                                        <HoverCardTrigger>
+                                          <Badge
+                                            variant="secondary"
+                                            className="cursor-pointer text-blue-500"
+                                          >
+                                            @{user.fullName}
+                                          </Badge>
+                                        </HoverCardTrigger>
+                                        <HoverCardContent className="w-auto p-0">
+                                          <UserHoverContent userId={user.id} />
+                                        </HoverCardContent>
+                                      </HoverCard>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            {msg.orderReference && (
+                              <HoverCard>
+                                <HoverCardTrigger>
+                                  <div className="mb-2 p-2 bg-orange-100 rounded border-l-2 border-orange-500 cursor-pointer">
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <Package className="h-3 w-3" />
+                                      <p className="text-xs font-medium text-orange-700">
+                                        Order Reference
+                                      </p>
+                                    </div>
+                                    <p className="text-xs text-orange-600">
+                                      #{msg.orderReference.orderId} •{" "}
+                                      {msg.orderReference.customerName}
+                                    </p>
+                                    {msg.orderReference.issueDescription && (
+                                      <p className="text-xs text-orange-600 mt-1">
+                                        {msg.orderReference.issueDescription}
+                                      </p>
+                                    )}
+                                  </div>
+                                </HoverCardTrigger>
+                                <HoverCardContent className="w-auto p-0">
+                                  <OrderHoverContent
+                                    orderId={msg.orderReference.orderId}
+                                  />
+                                </HoverCardContent>
+                              </HoverCard>
+                            )}
+                            <p className="text-sm break-words">
+                              {renderMessageContent(
+                                msg.content,
+                                msg.taggedUsersDetails
+                              )}
+                            </p>
+                            <p className="text-xs text-right mt-1 opacity-70">
+                              {formatTime(msg.timestamp)}
+                            </p>
+                          </div>
+                          {/* Reply button - shows on hover */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                            onClick={() => handleReply(msg)}
+                          >
+                            <Reply className="h-3 w-3" />
+                          </Button>
                         </div>
-                        {/* Reply button - shows on hover */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                          onClick={() => handleReply(msg)}
-                        >
-                          <Reply className="h-3 w-3" />
-                        </Button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {typingUsers.size > 0 && (
                     <div className="flex items-center space-x-2 text-sm text-gray-500">
@@ -1163,7 +1319,7 @@ export default function InternalChatPage() {
                     <Badge
                       key={user.id}
                       variant="secondary"
-                      className="flex items-center gap-1"
+                      className="flex items-center gap-1 text-primary-500"
                     >
                       @{user.name}
                       <button
@@ -1254,7 +1410,7 @@ export default function InternalChatPage() {
                             onClick={() => selectMention(user)}
                           >
                             <Avatar className="h-8 w-8">
-                              <AvatarImage src={user.avatar} />
+                              <AvatarImage src={user?.avatar} />
                               <AvatarFallback>
                                 {user.firstName[0]}
                                 {user.lastName[0]}

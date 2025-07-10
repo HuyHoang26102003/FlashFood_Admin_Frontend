@@ -431,6 +431,9 @@ export const adminChatSocket = {
   onRoomMessagesError: (socket: Socket, callback: (error: { message: string }) => void) => {
     socket.on("roomMessagesError", callback);
   },
+  onInvitationError: (socket: Socket, callback: (error: { message?: string, error?: string }) => void) => {
+    socket.on("invitationError", callback);
+  },
 
   // Read receipts
   markMessageAsRead: (
@@ -556,7 +559,10 @@ export const adminChatSocket = {
 
   onGroupSettingsUpdated: (
     socket: Socket,
-    callback: (room: AdminChatRoom) => void
+    callback: (data: {
+      groupId: string;
+      newSettings: Partial<AdminChatRoom>;
+    }) => void
   ) => {
     socket.on("groupSettingsUpdated", callback);
   },
