@@ -7,7 +7,6 @@ import {
   disconnectAdminSocket,
 } from "@/lib/adminSocket";
 import { useAdminStore } from "@/stores/adminStore";
-import { toast } from "@/hooks/use-toast";
 
 interface UseLiveDashboardDataProps {
   date1?: Date;
@@ -155,21 +154,51 @@ export const useLiveDashboardData = ({
           setIsConnected(false);
         });
 
-        // Listen for newly created entity notifications
+        // === Handle entity-created notifications ===
         const handleNewlyCreatedEntity = (data: {
           entity_name: string;
           timestamp: number;
           message: string;
           event_type: string;
         }) => {
-          // Refresh dashboard data when any new entity is created
-          if (isComponentMounted.current) {
-            console.log(
-              "🔄 Refreshing dashboard data due to new entity creation"
-            );
-            fetchDashboardData(false); // Refresh data in background
-            setLastUpdated(new Date());
-          }
+          if (!isComponentMounted.current) return;
+
+          const entity = data.entity_name.toLowerCase();
+
+          setDashboardData((prev) => {
+            if (!prev) return prev;
+
+            // Clone the previous data to avoid direct mutations
+            const updated = { ...prev } as DashboardData;
+
+            if (entity === "order") {
+              // Increment order volume metric
+              updated.order_volume = {
+                ...prev.order_volume,
+                metric: (prev.order_volume?.metric || 0) + 1,
+              };
+            } else if (
+              [
+                "driver",
+                "restaurant",
+                "restaurant_owner",
+                "customer",
+                "customer_care",
+                "customer_care_representative",
+              ].includes(entity)
+            ) {
+              // Increment total users metric
+              updated.total_users = {
+                ...prev.total_users,
+                metric: (prev.total_users?.metric || 0) + 1,
+              };
+            }
+
+            return updated;
+          });
+
+          // Update last-updated timestamp so UI reflects the change
+          setLastUpdated(new Date());
         };
 
         adminSocket.onNewlyCreatedEntity(handleNewlyCreatedEntity);
@@ -199,7 +228,6 @@ export const useLiveDashboardData = ({
     enableRealTimeUpdates,
     adminStore.isAuthenticated,
     adminStore.user?.accessToken,
-    fetchDashboardData,
   ]);
 
   // Cleanup on unmount

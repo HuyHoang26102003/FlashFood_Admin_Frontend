@@ -14,32 +14,40 @@ import { customerCareService } from "@/services/companion-admin/customerCareServ
 import { customerService } from "@/services/companion-admin/customerService";
 import { restaurantService } from "@/services/companion-admin/restaurantService";
 import { useToast } from "@/hooks/use-toast";
-import { useCustomerCareStore, CustomerCareUser } from "@/stores/customerCareStore";
+import {
+  useCustomerCareStore,
+  CustomerCareUser,
+} from "@/stores/customerCareStore";
 import { useAdminStore, AdminUser } from "@/stores/adminStore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, Bell, BellOff } from "lucide-react";
 import axiosInstance from "@/lib/axios";
+import { Switch } from "@/components/ui/switch";
+import { useNotificationStore } from "@/stores/notificationStore";
 
 enum Enum_Tabs {
   SEEDING = "Seeding",
   PROFILE = "Profile",
-  SECURITY = "Security",
+  NOTIFICATIONS_MANAGEMENT = "Notifications Management",
 }
 
 const tabs: Enum_Tabs[] = [
   Enum_Tabs.SEEDING,
   Enum_Tabs.PROFILE,
-  Enum_Tabs.SECURITY,
+  Enum_Tabs.NOTIFICATIONS_MANAGEMENT,
 ];
 
 type TypeSeedingAccordionItem = {
   id: number;
   titleTrigger: string;
   content: {
-    onClick: (router: AppRouterInstance, toast?: ReturnType<typeof useToast>["toast"]) => void;
+    onClick: (
+      router: AppRouterInstance,
+      toast?: ReturnType<typeof useToast>["toast"]
+    ) => void;
     id: number;
     title: string;
     variant:
@@ -221,6 +229,14 @@ const ConditionalTabContentRender = ({
   const setAdminUser = useAdminStore((state) => state.setUser);
   const setCustomerCareUser = useCustomerCareStore((state) => state.setUser);
 
+  // Global notification preferences from store
+  const notificationPreferences = useNotificationStore(
+    (state) => state.preferences
+  );
+  const updateNotificationPreference = useNotificationStore(
+    (state) => state.updatePreference
+  );
+
   const [profileData, setProfileData] = useState<ProfileFormData>({
     first_name: "",
     last_name: "",
@@ -231,8 +247,8 @@ const ConditionalTabContentRender = ({
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    first_name: adminUser?.first_name || customerCareUser?.first_name || '',
-    last_name: adminUser?.last_name || customerCareUser?.last_name || '',
+    first_name: adminUser?.first_name || customerCareUser?.first_name || "",
+    last_name: adminUser?.last_name || customerCareUser?.last_name || "",
   });
 
   useEffect(() => {
@@ -242,7 +258,9 @@ const ConditionalTabContentRender = ({
         setProfileData({
           first_name: user.first_name,
           last_name: user.last_name,
-          email: isCustomerCareUser(user) ? user.contact_email[0]?.email : user.email,
+          email: isCustomerCareUser(user)
+            ? user.contact_email[0]?.email
+            : user.email,
           avatar: user.avatar,
         });
         if (user.avatar?.url) {
@@ -255,17 +273,19 @@ const ConditionalTabContentRender = ({
   // Update form data when user data changes
   useEffect(() => {
     setFormData({
-      first_name: adminUser?.first_name || customerCareUser?.first_name || '',
-      last_name: adminUser?.last_name || customerCareUser?.last_name || '',
+      first_name: adminUser?.first_name || customerCareUser?.first_name || "",
+      last_name: adminUser?.last_name || customerCareUser?.last_name || "",
     });
   }, [adminUser, customerCareUser]);
 
-  const handleInputChange = (field: keyof typeof formData) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: e.target.value
-    }));
-  };
+  const handleInputChange =
+    (field: keyof typeof formData) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: e.target.value,
+      }));
+    };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -274,6 +294,15 @@ const ConditionalTabContentRender = ({
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
     }
+  };
+
+  const handleNotificationToggle = (
+    notificationType: keyof typeof notificationPreferences
+  ) => {
+    updateNotificationPreference(
+      notificationType,
+      !notificationPreferences[notificationType]
+    );
   };
 
   const handleProfileUpdate = async () => {
@@ -288,7 +317,10 @@ const ConditionalTabContentRender = ({
       if (selectedImage) {
         const formData = new FormData();
         formData.append("file", selectedImage);
-        formData.append("userType", isCustomerCareUser(user) ? "CUSTOMER_CARE_REPRESENTATIVE" : "ADMIN");
+        formData.append(
+          "userType",
+          isCustomerCareUser(user) ? "CUSTOMER_CARE_REPRESENTATIVE" : "ADMIN"
+        );
         formData.append("entityId", user.id);
 
         const response = await axiosInstance.post("upload/avatar", formData, {
@@ -315,7 +347,7 @@ const ConditionalTabContentRender = ({
         last_name: formData.last_name,
       };
 
-      const endpoint = isCustomerCareUser(user) 
+      const endpoint = isCustomerCareUser(user)
         ? `customer-cares/${user.id}`
         : `admin/${user.id}`;
 
@@ -332,14 +364,14 @@ const ConditionalTabContentRender = ({
 
         // Update the store with new data
         if (adminUser) {
-          setAdminUser({ 
-            ...adminUser, 
+          setAdminUser({
+            ...adminUser,
             ...updateResponse.data.data,
             avatar: newAvatar,
           });
         } else if (customerCareUser) {
-          setCustomerCareUser({ 
-            ...customerCareUser, 
+          setCustomerCareUser({
+            ...customerCareUser,
             ...updateResponse.data.data,
             avatar: newAvatar,
           });
@@ -358,7 +390,7 @@ const ConditionalTabContentRender = ({
         });
       }
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error("Error updating profile:", error);
       toast({
         title: "Error",
         description: "An error occurred while updating profile",
@@ -401,9 +433,10 @@ const ConditionalTabContentRender = ({
             <div className="flex flex-col items-center space-y-4">
               <div className="relative">
                 <Avatar className="w-32 h-32">
-                  <AvatarImage src={previewUrl || ''} />
+                  <AvatarImage src={previewUrl || ""} />
                   <AvatarFallback>
-                    {profileData.first_name?.[0]}{profileData.last_name?.[0]}
+                    {profileData.first_name?.[0]}
+                    {profileData.last_name?.[0]}
                   </AvatarFallback>
                 </Avatar>
                 <Label
@@ -428,7 +461,7 @@ const ConditionalTabContentRender = ({
                 <Input
                   id="first_name"
                   value={formData.first_name}
-                  onChange={handleInputChange('first_name')}
+                  onChange={handleInputChange("first_name")}
                   disabled={isLoading}
                 />
               </div>
@@ -438,7 +471,7 @@ const ConditionalTabContentRender = ({
                 <Input
                   id="last_name"
                   value={formData.last_name}
-                  onChange={handleInputChange('last_name')}
+                  onChange={handleInputChange("last_name")}
                   disabled={isLoading}
                 />
               </div>
@@ -473,6 +506,168 @@ const ConditionalTabContentRender = ({
           </CardContent>
         </Card>
       );
+    case Enum_Tabs.NOTIFICATIONS_MANAGEMENT:
+      return (
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5" />
+              Notification Management
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">
+                    Order Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive notifications about new orders, order updates, and
+                    status changes
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationPreferences.orders}
+                  onCheckedChange={() => handleNotificationToggle("orders")}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">
+                    Restaurant Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Get notified about restaurant registrations, updates, and
+                    status changes
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationPreferences.restaurants}
+                  onCheckedChange={() =>
+                    handleNotificationToggle("restaurants")
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">
+                    Customer Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive alerts about customer registrations, activities, and
+                    issues
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationPreferences.customers}
+                  onCheckedChange={() => handleNotificationToggle("customers")}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">
+                    Driver Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Get notified about driver registrations, availability, and
+                    delivery updates
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationPreferences.drivers}
+                  onCheckedChange={() => handleNotificationToggle("drivers")}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">
+                    Customer Care Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive notifications about customer care representative
+                    activities
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationPreferences.customerCare}
+                  onCheckedChange={() =>
+                    handleNotificationToggle("customerCare")
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">
+                    Customer Care Inquiries
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Get alerted about new customer inquiries and support
+                    requests
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationPreferences.customerCareInquiries}
+                  onCheckedChange={() =>
+                    handleNotificationToggle("customerCareInquiries")
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  {Object.values(notificationPreferences).every(Boolean) ? (
+                    <>
+                      <Bell className="w-4 h-4" />
+                      All notifications enabled
+                    </>
+                  ) : Object.values(notificationPreferences).some(Boolean) ? (
+                    <>
+                      <Bell className="w-4 h-4" />
+                      Some notifications enabled
+                    </>
+                  ) : (
+                    <>
+                      <BellOff className="w-4 h-4" />
+                      All notifications disabled
+                    </>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const allEnabled = Object.values(
+                      notificationPreferences
+                    ).every(Boolean);
+                    const newState = !allEnabled;
+                    updateNotificationPreference("orders", newState);
+                    updateNotificationPreference("restaurants", newState);
+                    updateNotificationPreference("customers", newState);
+                    updateNotificationPreference("drivers", newState);
+                    updateNotificationPreference("customerCare", newState);
+                    updateNotificationPreference(
+                      "customerCareInquiries",
+                      newState
+                    );
+                  }}
+                >
+                  {Object.values(notificationPreferences).every(Boolean)
+                    ? "Disable All"
+                    : "Enable All"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      );
   }
 };
 
@@ -480,25 +675,23 @@ const Page = () => {
   const customerCareZ = useCustomerCareStore((state) => state.user);
   const [selectedTab, setSelectedTab] = useState<Enum_Tabs>(tabs[0]);
 
-
   return (
     <div className="w-full mt-4 flex gap-4 justify-between">
       <div className=" w-4/12 flex flex-col ">
-        {tabs
-          ?.map((item) => (
-            <Button
-              onClick={() => {
-                setSelectedTab(item);
-              }}
-              key={item}
-              className={`text-primary ${
-                selectedTab === item ? "bg-primary-500 text-white" : null
-              }`}
-              variant="outline"
-            >
-              {item}
-            </Button>
-          ))}
+        {tabs?.map((item) => (
+          <Button
+            onClick={() => {
+              setSelectedTab(item);
+            }}
+            key={item}
+            className={`text-primary ${
+              selectedTab === item ? "bg-primary-500 text-white" : null
+            }`}
+            variant="outline"
+          >
+            {item}
+          </Button>
+        ))}
       </div>
       <div className="w-8/12  h-screen">
         <ConditionalTabContentRender selectedTab={selectedTab} />
@@ -507,7 +700,9 @@ const Page = () => {
   );
 };
 
-function isCustomerCareUser(user: AdminUser | CustomerCareUser): user is CustomerCareUser {
+function isCustomerCareUser(
+  user: AdminUser | CustomerCareUser
+): user is CustomerCareUser {
   return Array.isArray((user as CustomerCareUser).contact_email);
 }
 

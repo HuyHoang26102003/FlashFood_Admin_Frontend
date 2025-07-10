@@ -3,7 +3,7 @@ import { API_ENDPOINTS } from "@/lib/constants/api";
 
 interface UpdatePermissionsPayload {
   permissions: string[];
-  requesterId: string;
+  // requesterId: string;
 }
 
 export const superAdminService = {

@@ -558,13 +558,6 @@ const Page = () => {
                     ? "Ban"
                     : "Activate"}
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="flex items-center justify-start text-destructive"
-                >
-                  <Trash className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
               </div>
             </PopoverContent>
           </Popover>
@@ -641,6 +634,12 @@ const Page = () => {
       setCurrentPage(page);
     }
   };
+
+  console.log(
+    "checl priceaitorder",
+    typeof +customerOrders?.[3]?.order_items?.[0]?.price_at_time_of_order,
+    +customerOrders
+  );
 
   return (
     <div className="p-4">
@@ -994,8 +993,12 @@ const Page = () => {
                                     </p>
                                     <p className="text-sm text-muted-foreground">
                                       Price: $
-                                      {item.price_at_time_of_order.toFixed(2)} x{" "}
-                                      {item.quantity}
+                                      {
+                                        +(+item?.price_at_time_of_order)?.toFixed(
+                                          2
+                                        )
+                                      }{" "}
+                                      x {item.quantity}
                                     </p>
                                   </div>
                                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">

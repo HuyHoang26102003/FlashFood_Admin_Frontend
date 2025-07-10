@@ -9,5 +9,6 @@ export const API_ENDPOINTS = {
   CUSTOMER_CARE_INQUIRIES: "/customer-care-inquiries",
   ORDERS: "/orders",
   ADMIN: "/admin",
-  RESTAURANT_OWNERS: "/restaurant-owners"
+  RESTAURANT_OWNERS: "/restaurant-owners",
+  ADMIN_BOT: "/admin-chatbot",
 } as const;

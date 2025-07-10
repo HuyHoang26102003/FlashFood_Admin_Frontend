@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client";
-import { toast } from "@/hooks/use-toast";
 import { API_IP, API_PORT } from "@/constants/links";
+import { useNotificationStore } from "@/stores/notificationStore";
 
 interface AdminSocketEvents {
   newly_created_entity_notification: (data: {
@@ -65,11 +65,6 @@ export const createAdminSocket = (token: string | null) => {
       (response: any) => {
         if (response?.success) {
           console.log("✅ Successfully joined admin_global room");
-          toast({
-            title: "Real-time Updates Active",
-            description: "Dashboard is now receiving live updates",
-            variant: "default",
-          });
         } else {
           console.error("❌ Failed to join admin_global room:", response);
         }
@@ -80,11 +75,6 @@ export const createAdminSocket = (token: string | null) => {
   adminSocketInstance.on("connect_error", (error) => {
     console.error("❌ Admin socket connection error:", error.message, error);
     console.error("🔍 Full error object:", error);
-    toast({
-      title: "Connection Error",
-      description: "Failed to connect to real-time updates",
-      variant: "destructive",
-    });
   });
 
   adminSocketInstance.on("disconnect", (reason) => {
@@ -93,11 +83,6 @@ export const createAdminSocket = (token: string | null) => {
       console.error(
         "Server disconnected the admin socket. Possible causes: invalid token, missing auth header, or server-side validation failure."
       );
-      toast({
-        title: "Connection Lost",
-        description: "Real-time updates have been disconnected",
-        variant: "destructive",
-      });
     }
   });
 
@@ -105,18 +90,10 @@ export const createAdminSocket = (token: string | null) => {
     console.error("❌ Admin socket server error:", error);
   });
 
-  // Listen for newly created entity notifications
+  // Listen for newly created entity notifications - but don't show toasts here
+  // Let components handle their own notifications to avoid duplicates
   adminSocketInstance.on("newly_created_entity_notification", (data) => {
-    if (data.entity_name === "Order") {
-      console.log("📊 Received order created:", data);
-    }
-
-    // Show toast notification
-    toast({
-      title: "New Entity Created",
-      description: data.message || `New ${data.entity_name} has been created`,
-      variant: "default",
-    });
+    console.log("📊 Received entity notification:", data.entity_name, data);
   });
 
   return adminSocketInstance;

@@ -157,3 +157,14 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #63c550 #f1f1f1;
 }
+
+/* Entity Notification Animations */
+@keyframes shrink-width {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+.animate-shrink-width {
+  animation-name: shrink-width;
+  animation-timing-function: linear;
+}
