@@ -19,8 +19,8 @@ export const orderService = {
         }
       );
       return response.data;
-    } catch (error: any) {
-      console.error("Error fetching paginated orders:", error.message);
+    } catch (error: unknown) {
+      console.error("Error fetching paginated orders:", error instanceof Error ? error.message : "Unknown error");
       return {
         EC: 1,
         EM: "Error fetching orders",

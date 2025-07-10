@@ -76,6 +76,13 @@ export interface AdminChatMessage {
     } | null;
     role: string;
   };
+  replyToMessageDetails?: {
+    id: string;
+    content: string;
+    senderId: string;
+    senderName: string;
+    messageType: MessageType;
+  };
   taggedUsers?: string[];
   taggedUsersDetails?: TaggedUserDetail[];
 }
@@ -135,7 +142,7 @@ export interface SystemMessageData {
     | "ORDER_ESCALATED";
   userId?: string;
   userName?: string;
-  additionalInfo?: Record<string, any>;
+  additionalInfo?: Record<string, unknown>;
 }
 
 export interface FileAttachment {
@@ -147,13 +154,17 @@ export interface FileAttachment {
 }
 
 export interface PendingInvitation {
-  inviteId: string;
-  invitedUserId: string;
-  invitedBy: string;
-  invitedAt: Date;
-  status: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED";
-  expiresAt: Date;
+  id: string;
+  group: {
+    id: string;
+    name: string;
+  };
+  inviter: {
+    id: string;
+    name: string;
+  };
   message?: string;
+  expiresAt: string;
 }
 
 // Socket event payloads
@@ -208,9 +219,9 @@ export interface AdminChatResponse {
 }
 
 export interface TypingIndicator {
+  roomId: string;
   userId: string;
   userName: string;
-  roomId: string;
   isTyping: boolean;
 }
 

@@ -12,6 +12,8 @@ import {
   AdminChatMessage,
   MessageType,
   TaggedUserDetail,
+  PendingInvitation,
+  OrderReference,
 } from "@/types/admin-chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +34,9 @@ import {
   Paperclip,
   Smile,
   X,
+  Reply,
+  FileText,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CreateGroupDialog from "@/components/AdminChat/CreateGroupDialog";
@@ -44,6 +49,9 @@ import {
 } from "@/components/ui/popover";
 import InviteToGroupDialog from "@/components/AdminChat/InviteToGroupDialog";
 import { Socket } from "socket.io-client";
+import { useToast } from "@/hooks/use-toast";
+import GroupSettingsDialog from "@/components/AdminChat/GroupSettingsDialog";
+import OrderReferenceDialog from "@/components/AdminChat/OrderReferenceDialog";
 
 interface MentionUser {
   userId: string;
@@ -72,6 +80,12 @@ export default function InternalChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const [pendingInvites, setPendingInvites] = useState<PendingInvitation[]>([]);
+  const { toast } = useToast();
+
+  // Reply functionality
+  const [replyToMessage, setReplyToMessage] = useState<AdminChatMessage | null>(null);
+  const [orderReference, setOrderReference] = useState<OrderReference | null>(null);
 
   // Mention states
   const [showMentions, setShowMentions] = useState(false);
@@ -83,6 +97,7 @@ export default function InternalChatPage() {
   // Sending message state
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const adminUser = useAdminStore((state) => state.user);
   const customerCareUser = useCustomerCareStore((state) => state.user);
@@ -142,6 +157,28 @@ export default function InternalChatPage() {
     const cursorPosition = e.target.selectionStart || 0;
 
     setNewMessage(value);
+
+    // Emit typing event
+    if (selectedRoom && socketRef.current) {
+      if (!typingTimeoutRef.current) {
+        adminChatSocket.typing(socketRef.current, {
+          roomId: selectedRoom.id,
+          roomType: selectedRoom.type,
+        });
+      } else {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = setTimeout(() => {
+        if (socketRef.current && selectedRoom) {
+          adminChatSocket.stopTyping(socketRef.current, {
+            roomId: selectedRoom.id,
+            roomType: selectedRoom.type,
+          });
+          typingTimeoutRef.current = null;
+        }
+      }, 2000); // Stop typing after 2 seconds of inactivity
+    }
 
     // Only allow mentions in group chats
     if (selectedRoom?.type !== "ADMIN_GROUP") {
@@ -265,6 +302,7 @@ export default function InternalChatPage() {
           console.log("Admin connected:", data);
           setIsConnected(true);
           loadChatRooms();
+          loadPendingInvites();
         });
 
         adminChatSocket.onNewMessage(socket, (message) => {
@@ -305,9 +343,32 @@ export default function InternalChatPage() {
 
         adminChatSocket.onUserJoinedGroup(socket, ({ room, user }) => {
           console.log("User joined group:", user, room);
+          if (selectedRoomRef.current?.id === room.id) {
+            setSelectedRoom(room);
+          }
           setChatRooms((prev) =>
             prev.map((r) => (r.id === room.id ? room : r))
           );
+        });
+
+        adminChatSocket.onUserLeftGroup(socket, ({ room, user }) => {
+          console.log("User left group:", user.name);
+          const isCurrentUserLeaving = user.userId === currentUser?.id;
+
+          if (selectedRoomRef.current?.id === room.id) {
+            if (isCurrentUserLeaving) {
+              setSelectedRoom(null);
+            } else {
+              setSelectedRoom(room);
+            }
+          }
+          if (isCurrentUserLeaving) {
+            setChatRooms((prev) => prev.filter((r) => r.id !== room.id));
+          } else {
+            setChatRooms((prev) =>
+              prev.map((r) => (r.id === room.id ? room : r))
+            );
+          }
         });
 
         adminChatSocket.onRoomMessages(socket, (data) => {
@@ -324,8 +385,32 @@ export default function InternalChatPage() {
         });
 
         adminChatSocket.onUserTagged(socket, (data) => {
-          console.log("User tagged:", data);
-          // Handle user tagged notifications
+          if (
+            data.taggedUser === currentUser?.id &&
+            selectedRoomRef.current?.id !== data.message.roomId
+          ) {
+            toast({
+              title: `New Mention in ${
+                chatRooms.find((r) => r.id === data.message.roomId)
+                  ?.groupName || "another chat"
+              }`,
+              description: `${
+                data.message.senderDetails?.name || "Someone"
+              } mentioned you.`,
+              action: (
+                <Button
+                  onClick={() => {
+                    const roomToSelect = chatRooms.find(
+                      (r) => r.id === data.message.roomId
+                    );
+                    if (roomToSelect) selectRoom(roomToSelect);
+                  }}
+                >
+                  Go to Chat
+                </Button>
+              ),
+            });
+          }
         });
 
         adminChatSocket.onTyping(socket, (data) => {
@@ -391,6 +476,75 @@ export default function InternalChatPage() {
     }
   };
 
+  const loadPendingInvites = async () => {
+    if (!socketRef.current) return;
+    try {
+      const invites = await adminChatSocket.getPendingInvitations(
+        socketRef.current
+      );
+      setPendingInvites(invites);
+    } catch (error) {
+      console.error("Error fetching pending invitations:", error);
+    }
+  };
+
+  const handleRespondToInvite = useCallback(
+    async (inviteId: string, response: "ACCEPT" | "DECLINE") => {
+      if (!socketRef.current) return;
+      try {
+        const result = await adminChatSocket.respondToInvitation(
+          socketRef.current,
+          {
+            inviteId,
+            response,
+          }
+        );
+        if (result.success) {
+          setPendingInvites((prev) => prev.filter((i) => i.id !== inviteId));
+          if (response === "ACCEPT" && result.room) {
+            setChatRooms((prev) => [result.room!, ...prev]);
+            selectRoom(result.room!);
+            toast({
+              title: "Group Joined",
+              description: `You have successfully joined ${result.room.groupName}.`,
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`Error responding to invitation (${response}):`, error);
+        toast({
+          title: "Error",
+          description: "Failed to respond to the invitation.",
+          variant: "destructive",
+        });
+      }
+    },
+    []
+  );
+
+  const handleLeaveGroup = useCallback(async () => {
+    if (!selectedRoom || !socketRef.current || selectedRoom.type !== "ADMIN_GROUP")
+      return;
+    try {
+      await adminChatSocket.leaveRoom(socketRef.current, {
+        roomId: selectedRoom.id,
+        roomType: "ADMIN_GROUP",
+      });
+      // UI will update via onUserLeftGroup event
+      toast({
+        title: "Group Left",
+        description: `You have left ${selectedRoom.groupName}.`,
+      });
+    } catch (error) {
+      console.error("Error leaving group:", error);
+      toast({
+        title: "Error",
+        description: "Failed to leave the group.",
+        variant: "destructive",
+      });
+    }
+  }, [selectedRoom]);
+
   const selectRoom = async (room: AdminChatRoom) => {
     if (!socketRef.current || room.id === selectedRoom?.id) return;
 
@@ -412,25 +566,58 @@ export default function InternalChatPage() {
     }
   };
 
+  const handleReply = (message: AdminChatMessage) => {
+    setReplyToMessage(message);
+    inputRef.current?.focus();
+  };
+
+  const handleRemoveReply = () => {
+    setReplyToMessage(null);
+  };
+
+  const handleOrderReferenceSelected = (orderRef: OrderReference) => {
+    setOrderReference(orderRef);
+  };
+
+  const handleRemoveOrderReference = () => {
+    setOrderReference(null);
+  };
+
   const sendMessage = async () => {
     if (isSendingMessage || !newMessage.trim() || !selectedRoom || !socketRef.current)
       return;
 
     setIsSendingMessage(true);
     try {
+      // Stop typing indicator when sending a message
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        if (socketRef.current && selectedRoom) {
+          adminChatSocket.stopTyping(socketRef.current, {
+            roomId: selectedRoom.id,
+            roomType: selectedRoom.type,
+          });
+          typingTimeoutRef.current = null;
+        }
+      }
+
       const payload = {
         roomId: selectedRoom.id,
         content: newMessage.trim(),
-        messageType: MessageType.TEXT,
+        messageType: orderReference ? MessageType.ORDER_REFERENCE : MessageType.TEXT,
         taggedUsers:
           taggedUsers.length > 0
             ? taggedUsers.map((user) => user.id)
             : undefined,
+        replyToMessageId: replyToMessage?.id,
+        orderReference: orderReference || undefined,
       };
 
       await adminChatSocket.sendMessage(socketRef.current, payload);
       setNewMessage("");
       setTaggedUsers([]);
+      setReplyToMessage(null);
+      setOrderReference(null);
     } catch (error) {
       console.error("Error sending message:", error);
       setIsSendingMessage(false); // Re-enable on error
@@ -590,6 +777,45 @@ export default function InternalChatPage() {
           </div>
         </div>
 
+        {/* Pending Invites */}
+        {pendingInvites.length > 0 && (
+          <div className="p-4 border-t border-gray-200">
+            <h3 className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Invitations
+            </h3>
+            <div className="mt-2 space-y-1">
+              {pendingInvites.map((invite) => (
+                <div
+                  key={invite.id}
+                  className="p-2 rounded-lg bg-yellow-100 text-yellow-800"
+                >
+                  <p className="text-sm font-medium">
+                    Join <strong>{invite.group.name}</strong>
+                  </p>
+                  <p className="text-xs">from {invite.inviter.name}</p>
+                  <div className="flex items-center justify-end gap-2 mt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7"
+                      onClick={() => handleRespondToInvite(invite.id, "DECLINE")}
+                    >
+                      Decline
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 bg-yellow-400 hover:bg-yellow-500 text-yellow-900"
+                      onClick={() => handleRespondToInvite(invite.id, "ACCEPT")}
+                    >
+                      Accept
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Chat List */}
         <ScrollArea className="flex-1">
           <div className="p-2">
@@ -709,7 +935,7 @@ export default function InternalChatPage() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="w-48"
+                      className="w-48 p-1"
                       align="end"
                       side="left"
                       sideOffset={5}
@@ -722,6 +948,32 @@ export default function InternalChatPage() {
                         socket={socketRef.current}
                         groupId={selectedRoom?.id || ""}
                       />
+
+                      {selectedRoom.type === "ADMIN_GROUP" && (
+                        <>
+                          <GroupSettingsDialog
+                            room={selectedRoom}
+                            socket={socketRef.current}
+                            trigger={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start"
+                              >
+                                Group Settings
+                              </Button>
+                            }
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start text-red-500 hover:text-red-500 hover:bg-red-50"
+                            onClick={handleLeaveGroup}
+                          >
+                            Leave Group
+                          </Button>
+                        </>
+                      )}
                     </PopoverContent>
                   </Popover>
                 </div>
@@ -743,7 +995,7 @@ export default function InternalChatPage() {
                     <div
                       key={msg.id}
                       className={cn(
-                        "flex items-end gap-2",
+                        "flex items-end gap-2 group",
                         msg.senderId === currentUser?.id
                           ? "justify-end"
                           : "justify-start"
@@ -765,28 +1017,67 @@ export default function InternalChatPage() {
                           </AvatarFallback>
                         </Avatar>
                       )}
-                      <div
-                        className={cn(
-                          "p-3 rounded-lg max-w-md",
-                          msg.senderId === currentUser?.id
-                            ? "bg-primary text-primary-foreground rounded-br-none"
-                            : "bg-info-100 text-muted-foreground rounded-bl-none"
-                        )}
-                      >
-                        {msg.senderId !== currentUser?.id && msg.senderDetails && (
-                          <p className="text-xs font-bold mb-1 text-primary">
-                            {msg.senderDetails.name || "Unknown User"}
-                          </p>
-                        )}
-                        <p className="text-sm break-words">
-                          {renderMessageContent(
-                            msg.content,
-                            msg.taggedUsersDetails
+                      <div className="flex items-end gap-2 max-w-md">
+                        <div
+                          className={cn(
+                            "p-3 rounded-lg",
+                            msg.senderId === currentUser?.id
+                              ? "bg-primary text-primary-foreground rounded-br-none"
+                              : "bg-info-100 text-muted-foreground rounded-bl-none"
                           )}
-                        </p>
-                        <p className="text-xs text-right mt-1 opacity-70">
-                          {formatTime(msg.timestamp)}
-                        </p>
+                        >
+                          {msg.senderId !== currentUser?.id && msg.senderDetails && (
+                            <p className="text-xs font-bold mb-1 text-primary">
+                              {msg.senderDetails.name || "Unknown User"}
+                            </p>
+                          )}
+                          {msg.replyToMessageDetails && (
+                            <div className="mb-2 p-2 bg-black/10 rounded border-l-2 border-primary">
+                              <p className="text-xs font-medium text-blue-200">
+                                Replying to {msg.replyToMessageDetails.senderName}
+                              </p>
+                              <p className="text-xs opacity-75 truncate">
+                                {msg.replyToMessageDetails.content}
+                              </p>
+                            </div>
+                          )}
+                          {msg.orderReference && (
+                            <div className="mb-2 p-2 bg-orange-100 rounded border-l-2 border-orange-500">
+                              <div className="flex items-center gap-1 mb-1">
+                                <Package className="h-3 w-3" />
+                                <p className="text-xs font-medium text-orange-700">
+                                  Order Reference
+                                </p>
+                              </div>
+                              <p className="text-xs text-orange-600">
+                                #{msg.orderReference.orderId} • {msg.orderReference.customerName}
+                              </p>
+                              {msg.orderReference.issueDescription && (
+                                <p className="text-xs text-orange-600 mt-1">
+                                  {msg.orderReference.issueDescription}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          <p className="text-sm break-words">
+                            {renderMessageContent(
+                              msg.content,
+                              msg.taggedUsersDetails
+                            )}
+                          </p>
+                          <p className="text-xs text-right mt-1 opacity-70">
+                            {formatTime(msg.timestamp)}
+                          </p>
+                        </div>
+                        {/* Reply button - shows on hover */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                          onClick={() => handleReply(msg)}
+                        >
+                          <Reply className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -818,6 +1109,53 @@ export default function InternalChatPage() {
 
             {/* Message Input */}
             <div className="p-4 border-t border-gray-200 bg-white">
+              {/* Reply Preview */}
+              {replyToMessage && (
+                <div className="mb-3 p-2 bg-blue-50 rounded border-l-2 border-blue-500 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-blue-700">
+                      Replying to {replyToMessage.senderDetails?.name || "Unknown User"}
+                    </p>
+                    <p className="text-xs text-blue-600 truncate">
+                      {replyToMessage.content}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveReply}
+                    className="h-6 w-6 p-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Order Reference Preview */}
+              {orderReference && (
+                <div className="mb-3 p-2 bg-orange-50 rounded border-l-2 border-orange-500 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-orange-500" />
+                    <div>
+                      <p className="text-xs font-medium text-orange-700">
+                        Order #{orderReference.orderId} - {orderReference.customerName}
+                      </p>
+                      <p className="text-xs text-orange-600">
+                        {orderReference.restaurantName} • ${orderReference.totalAmount} • {orderReference.urgencyLevel}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveOrderReference}
+                    className="h-6 w-6 p-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
               {/* Tagged Users Display */}
               {taggedUsers.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-3">
@@ -841,14 +1179,52 @@ export default function InternalChatPage() {
               )}
 
               <div className="flex items-end space-x-3">
-                <Button variant="ghost" size="sm">
-                  <Paperclip className="h-5 w-5" />
-                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Paperclip className="h-5 w-5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-1" align="start">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        // TODO: Implement file upload
+                        toast({
+                          title: "Coming Soon",
+                          description: "File upload functionality will be implemented soon.",
+                        });
+                      }}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Local File
+                    </Button>
+                    <OrderReferenceDialog
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start"
+                        >
+                          <Package className="h-4 w-4 mr-2" />
+                          Order Reference
+                        </Button>
+                      }
+                      onOrderSelected={handleOrderReferenceSelected}
+                    />
+                  </PopoverContent>
+                </Popover>
 
                 <div className="flex-1 relative">
                   <Input
                     ref={inputRef}
-                    placeholder="Type your message... Use @ to mention someone"
+                    placeholder={
+                      replyToMessage
+                        ? "Reply to message..."
+                        : "Type your message... Use @ to mention someone"
+                    }
                     value={newMessage}
                     onChange={handleInputChange}
                     onKeyPress={handleKeyPress}
