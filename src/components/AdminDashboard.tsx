@@ -14,7 +14,7 @@ import { LiveStatusIndicator } from "@/components/LiveStatusIndicator";
 import { useEntityNotifications } from "@/hooks/useEntityNotifications";
 import { EntityNotificationContainer } from "@/components/EntityNotificationContainer";
 import { useNotificationStore } from "@/stores/notificationStore";
-import { adminSocket } from "@/lib/adminSocket";
+import { adminSocket, NewlyCreatedEntityPayload } from "@/lib/adminSocket";
 
 // Add highlight effect duration (ms)
 const HIGHLIGHT_DURATION = 4000;
@@ -55,12 +55,7 @@ const AdminDashboard = () => {
   );
 
   React.useEffect(() => {
-    const handleNewEntity = (data: {
-      entity_name: string;
-      timestamp: number;
-      message: string;
-      event_type: string;
-    }) => {
+    const handleNewEntity = (data: NewlyCreatedEntityPayload) => {
       const ent = data.entity_name.toLowerCase();
 
       // Determine highlight targets based on entity type
@@ -122,9 +117,17 @@ const AdminDashboard = () => {
       }
 
       if (shouldShowNotification) {
+        const notificationMessage =
+          ent !== "order" && data.entity_email
+            ? `A new ${data.entity_name
+                .replace(/_/g, " ")
+                .toLowerCase()} has just registered with email ${
+                data.entity_email
+              }`
+            : data.message;
         addNotification({
           entity_name: data.entity_name,
-          message: data.message,
+          message: notificationMessage,
           timestamp: data.timestamp,
         });
       }

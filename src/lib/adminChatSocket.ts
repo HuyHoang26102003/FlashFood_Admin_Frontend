@@ -11,6 +11,8 @@ import {
   TypingIndicator,
   GetRoomMessagesPayload,
   RoomMessagesResponse,
+  OrderReference,
+  AdminChatParticipant,
 } from "@/types/admin-chat";
 
 let adminChatSocketInstance: Socket | null = null;
@@ -284,7 +286,7 @@ export const adminChatSocket = {
 
   onOrderReferenced: (
     socket: Socket,
-    callback: (data: { message: AdminChatMessage; orderDetails: any }) => void
+    callback: (data: { message: AdminChatMessage; orderDetails: OrderReference }) => void
   ) => {
     socket.on("orderReferenced", callback);
   },
@@ -376,14 +378,14 @@ export const adminChatSocket = {
 
   onUserJoinedGroup: (
     socket: Socket,
-    callback: (data: { room: AdminChatRoom; user: any }) => void
+    callback: (data: { room: AdminChatRoom; user: AdminChatParticipant }) => void
   ) => {
     socket.on("userJoinedGroup", callback);
   },
 
   onUserLeftGroup: (
     socket: Socket,
-    callback: (data: { room: AdminChatRoom; user: any }) => void
+    callback: (data: { room: AdminChatRoom; user: AdminChatParticipant }) => void
   ) => {
     socket.on("userLeftGroup", callback);
   },
@@ -426,7 +428,7 @@ export const adminChatSocket = {
     socket.on("roomMessages", callback);
   },
 
-  onRoomMessagesError: (socket: Socket, callback: (error: any) => void) => {
+  onRoomMessagesError: (socket: Socket, callback: (error: { message: string }) => void) => {
     socket.on("roomMessagesError", callback);
   },
 
@@ -452,13 +454,13 @@ export const adminChatSocket = {
 
   // Order integration
   getOrderDetails: (socket: Socket, payload: { orderId: string }) => {
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<OrderReference>((resolve, reject) => {
       console.log("Emitting getOrderDetails event", payload);
 
       socket.emit(
         "getOrderDetails",
         payload,
-        (response: any | { error: string }) => {
+        (response: OrderReference | { error: string }) => {
           console.log("Received response from getOrderDetails:", response);
           if ("error" in response) {
             console.error("Error in getOrderDetails response:", response.error);
@@ -606,7 +608,7 @@ export const adminChatSocket = {
     callback: (data: {
       room: AdminChatRoom;
       action: string;
-      participant: any;
+      participant: AdminChatParticipant;
     }) => void
   ) => {
     socket.on("participantManaged", callback);

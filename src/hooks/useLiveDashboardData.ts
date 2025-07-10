@@ -5,8 +5,10 @@ import {
   createAdminSocket,
   adminSocket,
   disconnectAdminSocket,
+  NewlyCreatedEntityPayload,
 } from "@/lib/adminSocket";
 import { useAdminStore } from "@/stores/adminStore";
+import { Socket } from "socket.io-client";
 
 interface UseLiveDashboardDataProps {
   date1?: Date;
@@ -21,6 +23,15 @@ interface UseLiveDashboardDataReturn {
   lastUpdated: Date | null;
   isConnected: boolean;
   refreshData: () => void;
+}
+
+interface AxiosErrorResponse {
+  response?: {
+    data?: {
+      EM?: string;
+    };
+  };
+  message?: string;
 }
 
 export const useLiveDashboardData = ({
@@ -76,9 +87,10 @@ export const useLiveDashboardData = ({
       } catch (error: unknown) {
         console.error("Error fetching dashboard data:", error);
         if (isComponentMounted.current) {
+          const axiosError = error as AxiosErrorResponse;
           const errorMessage =
-            (error as any)?.response?.data?.EM ||
-            (error as any)?.message ||
+            axiosError?.response?.data?.EM ||
+            axiosError?.message ||
             "Network error";
           setError(errorMessage);
           setIsConnected(false);
@@ -116,7 +128,7 @@ export const useLiveDashboardData = ({
       return;
     }
 
-    let adminSocketInstance: any = null;
+    let adminSocketInstance: Socket | null = null;
 
     const setupSocketConnection = async () => {
       try {
@@ -143,24 +155,23 @@ export const useLiveDashboardData = ({
           setIsConnected(false);
         });
 
-        adminSocketInstance.on("connect_error", (error: any) => {
+        adminSocketInstance.on("connect_error", (error: Error) => {
           console.error("❌ Admin socket connection error:", error);
+          const socketError = error as Error & {
+            type?: string;
+            description?: { message: string };
+          };
           console.error("🔍 Error details:", {
-            message: error.message,
-            type: error.type,
-            description: error.description,
+            message: socketError.message,
+            type: socketError.type,
+            description: socketError.description,
           });
           setError("Failed to connect to real-time updates");
           setIsConnected(false);
         });
 
         // === Handle entity-created notifications ===
-        const handleNewlyCreatedEntity = (data: {
-          entity_name: string;
-          timestamp: number;
-          message: string;
-          event_type: string;
-        }) => {
+        const handleNewlyCreatedEntity = (data: NewlyCreatedEntityPayload) => {
           if (!isComponentMounted.current) return;
 
           const entity = data.entity_name.toLowerCase();

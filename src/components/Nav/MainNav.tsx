@@ -62,15 +62,59 @@ const MainNav = () => {
               variant="default"
             ></Badge>
           </div>
-          <div 
-            onClick={() => router.push("/chats")}
-                    className="w-10 aspect-square rounded-xl relative cc bg-primary-100 shadow-md shadow-primary-300 hover-sd">
-            <MessageCircle className="text-primary-500" />
-            <Badge
-              className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-primary-500"
-              variant="default"
-            ></Badge>
-          </div>
+          {customerCareZ && !adminZ ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <div className="w-10 aspect-square rounded-xl relative cc bg-primary-100 shadow-md shadow-primary-300 hover-sd cursor-pointer">
+                  <MessageCircle className="text-primary-500" />
+                  <Badge
+                    className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-primary-500"
+                    variant="default"
+                  ></Badge>
+                </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2">
+                <div className="grid gap-1">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={() => router.push("/internal-chat")}
+                  >
+                    Internal Chat
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={() => router.push("/chats")}
+                  >
+                    Support Chat
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          ) : adminZ && !customerCareZ ? (
+            <div
+              onClick={() => router.push("/internal-chat")}
+              className="w-10 aspect-square rounded-xl relative cc bg-primary-100 shadow-md shadow-primary-300 hover-sd cursor-pointer"
+            >
+              <MessageCircle className="text-primary-500" />
+              <Badge
+                className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-primary-500"
+                variant="default"
+              ></Badge>
+            </div>
+          ) : (
+            <div
+              onClick={() => router.push("/chats")}
+              className="w-10 aspect-square rounded-xl relative cc bg-primary-100 shadow-md shadow-primary-300 hover-sd"
+            >
+              <MessageCircle className="text-primary-500" />
+              <Badge
+                className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-primary-500"
+                variant="default"
+              ></Badge>
+            </div>
+          )}
           <div
             onClick={() => router.push("/promotions")}
             className="w-10 aspect-square rounded-xl relative cc bg-amber-200 shadow-md shadow-orange-300 hover-sd cursor-pointer"

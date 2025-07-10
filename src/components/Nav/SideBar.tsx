@@ -15,7 +15,7 @@ import {
   AD_SIDEBAR_ITEMS_CUSTOMER_CARE,
 } from "@/utils/appData";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import {  useEffect } from "react";
 import { useAdminStore } from "@/stores/adminStore";
 import { useCustomerCareStore } from "@/stores/customerCareStore";
 
@@ -27,8 +27,8 @@ const styleHoverItem =
 const SideBar = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const [selectedDropdownMenuTitle, setSelectedDropdownMenuTitle] =
-    useState("");
+  // const [selectedDropdownMenuTitle, setSelectedDropdownMenuTitle] =
+  //   useState("");
   const adminLoggedInAs = useAdminStore((state) => state.user?.logged_in_as);
   const customerCareLoggedInAs = useCustomerCareStore(
     (state) => state.user?.logged_in_as
@@ -155,9 +155,9 @@ const SideBar = () => {
                 {item.dropdownItem?.map((subItem, j) => (
                   <DropdownMenuItem key={j}>
                     <Link
-                      onClick={() =>
-                        setSelectedDropdownMenuTitle(subItem.title as string)
-                      }
+                      // onClick={() =>
+                      //   setSelectedDropdownMenuTitle(subItem.title as string)
+                      // }
                       href={subItem.link as string}
                     >
                       {subItem.title}

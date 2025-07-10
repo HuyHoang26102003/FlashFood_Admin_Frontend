@@ -145,7 +145,7 @@ export default function InviteToGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+      <DialogTrigger className="bg-transparent border-none shadow-none" asChild>
         {trigger || (
           <Button variant="outline" size="sm">
             <Plus className="h-4 w-4 mr-2" />

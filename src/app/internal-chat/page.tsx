@@ -5,20 +5,19 @@ import { useAdminStore } from "@/stores/adminStore";
 import { useCustomerCareStore } from "@/stores/customerCareStore";
 import {
   createAdminChatSocket,
-  getAdminChatSocket,
   adminChatSocket,
 } from "@/lib/adminChatSocket";
 import {
   AdminChatRoom,
   AdminChatMessage,
   MessageType,
+  TaggedUserDetail,
 } from "@/types/admin-chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   MessageCircle,
@@ -35,7 +34,6 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import CreateGroupDialog from "@/components/AdminChat/CreateGroupDialog";
 import StartDirectChatDialog from "@/components/AdminChat/StartDirectChatDialog";
 import axiosInstance from "@/lib/axios";
@@ -45,6 +43,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import InviteToGroupDialog from "@/components/AdminChat/InviteToGroupDialog";
+import { Socket } from "socket.io-client";
 
 interface MentionUser {
   userId: string;
@@ -69,25 +68,28 @@ export default function InternalChatPage() {
   const [messages, setMessages] = useState<AdminChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
-  const [openInviteDialog, setOpenInviteDialog] = useState(false);
 
   // Mention states
   const [showMentions, setShowMentions] = useState(false);
-  const [mentionQuery, setMentionQuery] = useState("");
   const [mentionUsers, setMentionUsers] = useState<MentionUser[]>([]);
   const [taggedUsers, setTaggedUsers] = useState<TaggedUser[]>([]);
-  const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
+  const [isMentionLoading, setIsMentionLoading] = useState(false);
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
+
+  // Sending message state
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const adminUser = useAdminStore((state) => state.user);
   const customerCareUser = useCustomerCareStore((state) => state.user);
   const currentUser = adminUser || customerCareUser;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const socketRef = useRef<any>(null);
+  const socketRef = useRef<Socket | null>(null);
   const selectedRoomRef = useRef<AdminChatRoom | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -105,26 +107,34 @@ export default function InternalChatPage() {
   }, [messages]);
 
   // Debounced search for mentions
-  const searchMentionUsers = useCallback(async (query: string) => {
-    if (query.length < 1 || !selectedRoomRef.current) {
-      setMentionUsers([]);
-      return;
-    }
-
-    try {
-      const response = await axiosInstance.get(
-        `/group-chat/${selectedRoomRef.current.id}/members?keyword=${query}`
-      );
-      if (response.data.EC === 0) {
-        setMentionUsers(response.data.data);
-      } else {
+  const searchMentionUsers = useCallback(
+    async (query: string) => {
+      if (!selectedRoomRef.current) {
         setMentionUsers([]);
+        return;
       }
-    } catch (error) {
-      console.error("Error searching mention users:", error);
-      setMentionUsers([]);
-    }
-  }, []);
+
+      setIsMentionLoading(true);
+      try {
+        const response = await axiosInstance.get(
+          `/admin/group-chat/${
+            selectedRoomRef.current.id
+          }/members?keyword=${query}`
+        );
+        if (response.data.EC === 0) {
+          setMentionUsers(response.data.data);
+        } else {
+          setMentionUsers([]);
+        }
+      } catch (error) {
+        console.error("Error searching mention users:", error);
+        setMentionUsers([]);
+      } finally {
+        setIsMentionLoading(false);
+      }
+    },
+    [selectedRoomRef]
+  );
 
   // Handle @ detection and mention popup
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,20 +158,16 @@ export default function InternalChatPage() {
     ) {
       const query = value.substring(lastAtIndex + 1, cursorPosition);
       if (!query.includes(" ")) {
-        setMentionQuery(query);
         setShowMentions(true);
         setActiveMentionIndex(0);
-        searchMentionUsers(query);
 
-        // Calculate popup position
-        const input = inputRef.current;
-        if (input) {
-          const rect = input.getBoundingClientRect();
-          setMentionPosition({
-            top: rect.top - 200,
-            left: rect.left,
-          });
+        if (debounceTimeoutRef.current) {
+          clearTimeout(debounceTimeoutRef.current);
         }
+        setIsMentionLoading(true); // Show loading immediately
+        debounceTimeoutRef.current = setTimeout(() => {
+          searchMentionUsers(query);
+        }, 300);
       } else {
         setShowMentions(false);
       }
@@ -268,6 +274,10 @@ export default function InternalChatPage() {
             message.roomId === selectedRoomRef.current.id
           ) {
             setMessages((prev) => [...prev, message]);
+            // If the message is from the current user, re-enable the input
+            if (message.senderId === (adminUser?.id || customerCareUser?.id)) {
+              setIsSendingMessage(false);
+            }
           }
           // Update chat rooms list with latest message
           setChatRooms((prev) =>
@@ -305,10 +315,12 @@ export default function InternalChatPage() {
           if (data.roomId === selectedRoomRef.current?.id) {
             setMessages(data.messages);
           }
+          setIsMessagesLoading(false);
         });
 
         adminChatSocket.onRoomMessagesError(socket, (error) => {
           console.error("Error receiving room messages:", error);
+          setIsMessagesLoading(false);
         });
 
         adminChatSocket.onUserTagged(socket, (data) => {
@@ -385,6 +397,7 @@ export default function InternalChatPage() {
     try {
       setSelectedRoom(room);
       setMessages([]); // Clear messages while loading new room
+      setIsMessagesLoading(true);
       await adminChatSocket.joinRoom(socketRef.current, {
         roomId: room.id,
         roomType: room.type,
@@ -395,12 +408,15 @@ export default function InternalChatPage() {
       });
     } catch (error) {
       console.error("Error joining room:", error);
+      setIsMessagesLoading(false);
     }
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedRoom || !socketRef.current) return;
+    if (isSendingMessage || !newMessage.trim() || !selectedRoom || !socketRef.current)
+      return;
 
+    setIsSendingMessage(true);
     try {
       const payload = {
         roomId: selectedRoom.id,
@@ -417,29 +433,45 @@ export default function InternalChatPage() {
       setTaggedUsers([]);
     } catch (error) {
       console.error("Error sending message:", error);
+      setIsSendingMessage(false); // Re-enable on error
     }
+  };
+
+  const renderMessageContent = (
+    content: string,
+    taggedUsersDetails?: TaggedUserDetail[]
+  ) => {
+    if (!taggedUsersDetails?.length) {
+      return <span>{content}</span>;
+    }
+
+    const mentionElements = taggedUsersDetails.map((user) => (
+      <strong
+        key={user.id}
+        className="text-blue-500 font-semibold bg-blue-200 px-1 rounded-sm mr-1"
+      >
+        {`@${user.fullName}`}
+      </strong>
+    ));
+
+    return (
+      <span>
+        {mentionElements}
+        {content}
+      </span>
+    );
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     handleKeyDown(e);
   };
 
-  const startDirectChat = async (withAdminId: string) => {
-    if (!socketRef.current) return;
-
-    try {
-      const room = await adminChatSocket.startDirectChat(socketRef.current, {
-        withAdminId,
-      });
-      selectRoom(room);
-    } catch (error) {
-      console.error("Error starting direct chat:", error);
-    }
-  };
-
   const formatTime = (date: Date | string) => {
     const messageDate = new Date(date);
-    return format(messageDate, "HH:mm");
+    return messageDate.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const formatLastActivity = (date: Date | string) => {
@@ -449,9 +481,15 @@ export default function InternalChatPage() {
       (now.getTime() - activityDate.getTime()) / (1000 * 60 * 60);
 
     if (diffInHours < 24) {
-      return format(activityDate, "HH:mm");
+      return activityDate.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     } else {
-      return format(activityDate, "MMM dd");
+      return activityDate.toLocaleDateString([], {
+        month: "short",
+        day: "numeric",
+      });
     }
   };
 
@@ -466,7 +504,7 @@ export default function InternalChatPage() {
   useEffect(() => {
     const fetchAdminUsers = async () => {
       const response = await axiosInstance.get("/admin/internal-users/search");
-      const { EC, EM, data } = response.data;
+      const { data } = response.data;
       console.log("check data", data);
     };
     fetchAdminUsers();
@@ -486,46 +524,6 @@ export default function InternalChatPage() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Mentions Popup */}
-      {showMentions && mentionUsers.length > 0 && (
-        <div
-          className="fixed z-50 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto"
-          style={{
-            top: mentionPosition.top,
-            left: mentionPosition.left,
-            width: "300px",
-          }}
-        >
-          {mentionUsers.map((user, index) => (
-            <div
-              key={user.userId}
-              className={cn(
-                "flex items-center space-x-3 p-3 cursor-pointer hover:bg-gray-100",
-                index === activeMentionIndex && "bg-blue-50"
-              )}
-              onClick={() => selectMention(user)}
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user.avatar} />
-                <AvatarFallback>
-                  {user.firstName[0]}
-                  {user.lastName[0]}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <p className="font-medium text-sm">
-                  {user.firstName} {user.lastName}
-                </p>
-                <p className="text-xs text-gray-500">{user.email}</p>
-              </div>
-              <Badge variant="outline" className="text-xs">
-                {user.userType}
-              </Badge>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Sidebar */}
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
         {/* Header */}
@@ -732,80 +730,90 @@ export default function InternalChatPage() {
 
             {/* Messages */}
             <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "flex items-start space-x-3",
-                      message.senderId === currentUser?.id &&
-                        "flex-row-reverse space-x-reverse"
-                    )}
-                  >
-                    <Avatar className="h-8 w-8">
-                      <div className="w-full h-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center text-white text-sm font-medium">
-                        {message.senderInfo?.name?.[0]?.toUpperCase() || "U"}
-                      </div>
-                    </Avatar>
-
+              {isMessagesLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading messages...</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {messages.map((msg) => (
                     <div
+                      key={msg.id}
                       className={cn(
-                        "max-w-xs lg:max-w-md",
-                        message.senderId === currentUser?.id && "items-end"
+                        "flex items-end gap-2",
+                        msg.senderId === currentUser?.id
+                          ? "justify-end"
+                          : "justify-start"
                       )}
                     >
+                      {msg.senderId !== currentUser?.id && msg.senderDetails && (
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage
+                            src={msg.senderDetails.avatar?.url}
+                            alt={msg.senderDetails.name}
+                            className="bg-primary-400"
+                          />
+                          <AvatarFallback>
+                            {msg.senderDetails.name
+                              ?.split(" ")
+                              .map((n: string) => n[0])
+                              .join("")
+                              .toUpperCase() || "???"}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
                       <div
                         className={cn(
-                          "px-4 py-2 rounded-2xl",
-                          message.senderId === currentUser?.id
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 text-gray-900"
+                          "p-3 rounded-lg max-w-md",
+                          msg.senderId === currentUser?.id
+                            ? "bg-primary text-primary-foreground rounded-br-none"
+                            : "bg-info-100 text-muted-foreground rounded-bl-none"
                         )}
                       >
-                        <p className="text-sm">{message.content}</p>
-                      </div>
-
-                      <div
-                        className={cn(
-                          "flex items-center mt-1 space-x-2",
-                          message.senderId === currentUser?.id && "justify-end"
+                        {msg.senderId !== currentUser?.id && msg.senderDetails && (
+                          <p className="text-xs font-bold mb-1 text-primary">
+                            {msg.senderDetails.name || "Unknown User"}
+                          </p>
                         )}
-                      >
-                        <span className="text-xs text-gray-500">
-                          {formatTime(message.timestamp)}
-                        </span>
-                        {message.senderId !== currentUser?.id && (
-                          <span className="text-xs text-gray-500">
-                            {message.senderInfo?.name}
-                          </span>
-                        )}
+                        <p className="text-sm break-words">
+                          {renderMessageContent(
+                            msg.content,
+                            msg.taggedUsersDetails
+                          )}
+                        </p>
+                        <p className="text-xs text-right mt-1 opacity-70">
+                          {formatTime(msg.timestamp)}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {typingUsers.size > 0 && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-500">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                      <div
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                        style={{ animationDelay: "0.1s" }}
-                      ></div>
-                      <div
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                        style={{ animationDelay: "0.2s" }}
-                      ></div>
+                  {typingUsers.size > 0 && (
+                    <div className="flex items-center space-x-2 text-sm text-gray-500">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div
+                          className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.1s" }}
+                        ></div>
+                        <div
+                          className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.2s" }}
+                        ></div>
+                      </div>
+                      <span>
+                        {Array.from(typingUsers).join(", ")}{" "}
+                        {typingUsers.size === 1 ? "is" : "are"} typing...
+                      </span>
                     </div>
-                    <span>
-                      {Array.from(typingUsers).join(", ")}{" "}
-                      {typingUsers.size === 1 ? "is" : "are"} typing...
-                    </span>
-                  </div>
-                )}
+                  )}
 
-                <div ref={messagesEndRef} />
-              </div>
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
             </ScrollArea>
 
             {/* Message Input */}
@@ -837,7 +845,7 @@ export default function InternalChatPage() {
                   <Paperclip className="h-5 w-5" />
                 </Button>
 
-                <div className="flex-1">
+                <div className="flex-1 relative">
                   <Input
                     ref={inputRef}
                     placeholder="Type your message... Use @ to mention someone"
@@ -845,7 +853,57 @@ export default function InternalChatPage() {
                     onChange={handleInputChange}
                     onKeyPress={handleKeyPress}
                     className="resize-none"
+                    disabled={isSendingMessage}
                   />
+                  {/* Mentions Popup */}
+                  {showMentions && (
+                    <div
+                      className="absolute z-50 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto bottom-full left-0 mb-2"
+                      style={{
+                        width: "300px",
+                      }}
+                    >
+                      {isMentionLoading ? (
+                        <div className="p-4 text-center text-gray-500">
+                          Loading users...
+                        </div>
+                      ) : mentionUsers.length > 0 ? (
+                        mentionUsers.map((user, index) => (
+                          <div
+                            key={user.userId}
+                            className={cn(
+                              "flex items-center space-x-3 p-3 cursor-pointer hover:bg-gray-100",
+                              index === activeMentionIndex && "bg-blue-50"
+                            )}
+                            onClick={() => selectMention(user)}
+                          >
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={user.avatar} />
+                              <AvatarFallback>
+                                {user.firstName[0]}
+                                {user.lastName[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">
+                                {user.firstName} {user.lastName}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {user.email}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {user.userType}
+                            </Badge>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-gray-500">
+                          No users found.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <Button variant="ghost" size="sm">
@@ -854,10 +912,14 @@ export default function InternalChatPage() {
 
                 <Button
                   onClick={sendMessage}
-                  disabled={!newMessage.trim()}
+                  disabled={!newMessage.trim() || isSendingMessage}
                   className="px-4"
                 >
-                  <Send className="h-4 w-4" />
+                  {isSendingMessage ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>

@@ -1,16 +1,13 @@
 import { io, Socket } from "socket.io-client";
 import { API_IP, API_PORT } from "@/constants/links";
-import { useNotificationStore } from "@/stores/notificationStore";
 
-interface AdminSocketEvents {
-  newly_created_entity_notification: (data: {
-    entity_name: string;
-    timestamp: number;
-    message: string;
-    event_type: string;
-  }) => void;
+export interface NewlyCreatedEntityPayload {
+  entity_name: string;
+  entity_email?: string;
+  timestamp: number;
+  message: string;
+  event_type: string;
 }
-
 let adminSocketInstance: Socket | null = null;
 
 export const createAdminSocket = (token: string | null) => {
@@ -62,7 +59,7 @@ export const createAdminSocket = (token: string | null) => {
     adminSocketInstance?.emit(
       "joinAdminRoom",
       { room: "admin_global" },
-      (response: any) => {
+      (response: { success: boolean }) => {
         if (response?.success) {
           console.log("✅ Successfully joined admin_global room");
         } else {
@@ -92,9 +89,12 @@ export const createAdminSocket = (token: string | null) => {
 
   // Listen for newly created entity notifications - but don't show toasts here
   // Let components handle their own notifications to avoid duplicates
-  adminSocketInstance.on("newly_created_entity_notification", (data) => {
-    console.log("📊 Received entity notification:", data.entity_name, data);
-  });
+  adminSocketInstance.on(
+    "newly_created_entity_notification",
+    (data: NewlyCreatedEntityPayload) => {
+      console.log("📊 Received entity notification:", data.entity_name, data);
+    }
+  );
 
   return adminSocketInstance;
 };
@@ -110,20 +110,15 @@ export const disconnectAdminSocket = () => {
 };
 
 export const adminSocket = {
-  onNewlyCreatedEntity: (
-    callback: (data: {
-      entity_name: string;
-      timestamp: number;
-      message: string;
-      event_type: string;
-    }) => void
-  ) => {
+  onNewlyCreatedEntity: (callback: (data: NewlyCreatedEntityPayload) => void) => {
     if (adminSocketInstance) {
       adminSocketInstance.on("newly_created_entity_notification", callback);
     }
   },
 
-  offNewlyCreatedEntity: (callback?: (data: any) => void) => {
+  offNewlyCreatedEntity: (
+    callback?: (data: NewlyCreatedEntityPayload) => void
+  ) => {
     if (adminSocketInstance) {
       if (callback) {
         adminSocketInstance.off("newly_created_entity_notification", callback);

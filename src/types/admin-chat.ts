@@ -67,6 +67,26 @@ export interface AdminChatMessage {
     avatar?: string;
     role: string;
   };
+  senderDetails?: {
+    id: string;
+    name: string;
+    avatar: {
+      key: string;
+      url: string;
+    } | null;
+    role: string;
+  };
+  taggedUsers?: string[];
+  taggedUsersDetails?: TaggedUserDetail[];
+}
+
+export interface TaggedUserDetail {
+  id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  role: string;
+  type: string;
 }
 
 export enum MessageType {
