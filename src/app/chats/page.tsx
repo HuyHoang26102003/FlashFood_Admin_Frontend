@@ -112,23 +112,23 @@ export default function ChatPage() {
   const getAccessToken = () => {
     const adminStore = useAdminStore.getState();
     const customerCareStore = useCustomerCareStore.getState();
-    
+
     // Check admin token first
     if (adminStore.isAuthenticated && adminStore.user) {
-      console.log('Using admin token');
+      console.log("Using admin token");
       return adminStore.user.accessToken;
     }
-    
+
     // Fallback to customer care token
     if (customerCareStore.isAuthenticated && customerCareStore.user) {
-      console.log('Using customer care token');
+      console.log("Using customer care token");
       return customerCareStore.user.accessToken;
     }
-    
-    console.log('No valid token found');
+
+    console.log("No valid token found");
     return null;
   };
-  console.log('check get acace token' , getAccessToken())
+  console.log("check get acace token", getAccessToken());
 
   const fetchAllChats = async (
     socketInstance: ReturnType<typeof createSocket>
@@ -518,8 +518,8 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex overflow-hidden  py-4">
-      <div className="w-1/3  border-r border-gray-200 pr-4 overflow-y-auto">
+    <div className="flex overflow-hidden py-2">
+      <div className="w-1/3 max-h-[calc(100vh-7rem)] border-r border-gray-200 pr-4 overflow-y-auto">
         <div className="relative mb-4" ref={searchContainerRef}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -648,9 +648,9 @@ export default function ChatPage() {
                         ? limitCharacters(chat.lastMessage.content, 16)
                         : "No messages yet"}
                     </span>
-                    {chat.lastMessage?.readBy?.length === 1 && (
+                    {/* {chat.lastMessage?.readBy?.length === 1 && (
                       <Badge className="bg-danger-500 h-5 text-white">1</Badge>
-                    )}
+                    )} */}
                   </div>
                 </div>
               </div>
@@ -696,9 +696,9 @@ export default function ChatPage() {
                         ? chat.lastMessage.content
                         : "No messages yet"}
                     </span>
-                    {chat.lastMessage?.readBy?.length === 1 && (
+                    {/* {chat.lastMessage?.readBy?.length === 1 && (
                       <Badge className="bg-danger-500 h-4 text-white">1</Badge>
-                    )}
+                    )} */}
                   </div>
                 </div>
               </div>
@@ -709,16 +709,19 @@ export default function ChatPage() {
 
       <div className="flex-1 flex flex-col bg-white rounded-lg shadow-md overflow-hidden">
         <div className="border-b border-gray-200 p-4 py-2  flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Avatar>
-              <AvatarImage
-                src={selectedChat ? getParticipantAvatar(selectedChat) : ""}
-                alt={selectedChat ? getParticipantName(selectedChat) : "User"}
-              />
-              <AvatarFallback>
-                {selectedChat ? getParticipantName(selectedChat)[0] : "U"}
-              </AvatarFallback>
-            </Avatar>
+          <div className="flex items-center  space-x-3">
+            <div
+              className={`z-1 w-10 h-10  rounded-full`}
+              style={{
+                backgroundImage: `url(${
+                  selectedChat ? getParticipantAvatar(selectedChat) : ""
+                })`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            >
+              {/* <div className="w-full h-full bg-red-300 rounded-full"></div> */}
+            </div>
             <div className="">
               <h2 className="font-semibold">
                 {selectedChat ? getParticipantName(selectedChat) : "User"}
@@ -738,7 +741,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <div className="max-h-[calc(100vh-14rem)] p-4 overflow-y-auto ">
+        <div className="max-h-[calc(100vh-14rem)] bg-gray-50 p-4 overflow-y-auto ">
           {chatHistory.map((msg) => (
             <div
               key={msg.id}

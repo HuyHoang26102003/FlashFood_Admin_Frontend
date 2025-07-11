@@ -73,7 +73,12 @@ const MainNav = () => {
                   ></Badge>
                 </div>
               </PopoverTrigger>
-              <PopoverContent className="w-48 p-2">
+              <PopoverContent
+                className="w-48 p-2 z-[1000] bg-green-300"
+                side="top"
+                align="center"
+                sideOffset={8}
+              >
                 <div className="grid gap-1">
                   <Button
                     variant="ghost"

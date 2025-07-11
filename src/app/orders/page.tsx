@@ -37,14 +37,7 @@ import { Order } from "@/types/orders";
 import { orderService } from "@/services/order/orderService";
 import { formatEpochToExactTime } from "@/utils/functions/formatTime";
 import IdCell from "@/components/IdCell";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationPrevious,
-  PaginationNext,
-  PaginationLink,
-} from "@/components/ui/pagination";
+import { SimplePagination } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import PageTitle from "@/components/PageTitle";
 import {
@@ -84,13 +77,13 @@ const Page = () => {
 
         // Calculate stats based on order status
         const deliveredCount = data.items.filter(
-          (order) => order.status === "DELIVERED"
+          (order: Order) => order.status === "DELIVERED"
         ).length;
         const pendingCount = data.items.filter(
-          (order) => order.status === "PENDING"
+          (order: Order) => order.status === "PENDING"
         ).length;
         const cancelledCount = data.items.filter(
-          (order) => order.status === "CANCELLED"
+          (order: Order) => order.status === "CANCELLED"
         ).length;
 
         setStats({
@@ -403,40 +396,11 @@ const Page = () => {
           </Table>
         </div>
         <div className="mt-4">
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  className={
-                    currentPage === 1 ? "pointer-events-none opacity-50" : ""
-                  }
-                />
-              </PaginationItem>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (page) => (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      onClick={() => handlePageChange(page)}
-                      isActive={currentPage === page}
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                )
-              )}
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  className={
-                    currentPage === totalPages
-                      ? "pointer-events-none opacity-50"
-                      : ""
-                  }
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+          <SimplePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
         </div>
       </div>
 

@@ -168,7 +168,7 @@ export const adminChatSocket = {
       reason?: string;
     }
   ) => {
-    return new Promise<{ success: boolean; room?: AdminChatRoom }>(
+    return new Promise<{ success: boolean; groupId?: string }>(
       (resolve, reject) => {
         console.log("Emitting respondToInvitation event", payload);
 
@@ -176,9 +176,7 @@ export const adminChatSocket = {
           "respondToInvitation",
           payload,
           (
-            response:
-              | { success: boolean; room?: AdminChatRoom }
-              | { error: string }
+            response: { success: boolean; groupId?: string } | { error: string }
           ) => {
             console.log(
               "Received response from respondToInvitation:",
@@ -200,28 +198,26 @@ export const adminChatSocket = {
   },
 
   getPendingInvitations: (socket: Socket) => {
-    return new Promise<PendingInvitation[]>((resolve, reject) => {
-      console.log("Emitting getPendingInvitations event");
+    console.log("Emitting getPendingInvitations event");
+    socket.emit("getPendingInvitations");
+  },
 
-      socket.emit(
-        "getPendingInvitations",
-        (response: PendingInvitation[] | { error: string }) => {
-          console.log(
-            "Received response from getPendingInvitations:",
-            response
-          );
-          if ("error" in response) {
-            console.error(
-              "Error in getPendingInvitations response:",
-              response.error
-            );
-            reject(new Error(response.error));
-          } else {
-            resolve(response);
-          }
-        }
-      );
-    });
+  onPendingInvitations: (
+    socket: Socket,
+    callback: (data: {
+      invitations: PendingInvitation[];
+      count: number;
+      timestamp: string;
+    }) => void
+  ) => {
+    socket.on("pendingInvitations", callback);
+  },
+
+  onInvitationsError: (
+    socket: Socket,
+    callback: (error: { error: string; timestamp: string }) => void
+  ) => {
+    socket.on("invitationsError", callback);
   },
 
   // Direct chat
@@ -286,7 +282,10 @@ export const adminChatSocket = {
 
   onOrderReferenced: (
     socket: Socket,
-    callback: (data: { message: AdminChatMessage; orderDetails: OrderReference }) => void
+    callback: (data: {
+      message: AdminChatMessage;
+      orderDetails: OrderReference;
+    }) => void
   ) => {
     socket.on("orderReferenced", callback);
   },
@@ -378,16 +377,39 @@ export const adminChatSocket = {
 
   onUserJoinedGroup: (
     socket: Socket,
-    callback: (data: { room: AdminChatRoom; user: AdminChatParticipant }) => void
+    callback: (data: {
+      groupId: string;
+      userId: string;
+      userName: string;
+      userRole: string;
+      timestamp: string;
+    }) => void
   ) => {
     socket.on("userJoinedGroup", callback);
   },
 
   onUserLeftGroup: (
     socket: Socket,
-    callback: (data: { room: AdminChatRoom; user: AdminChatParticipant }) => void
+    callback: (data: {
+      groupId: string;
+      userId: string;
+      userName: string;
+      timestamp: string;
+    }) => void
   ) => {
     socket.on("userLeftGroup", callback);
+  },
+
+  onGroupLeft: (
+    socket: Socket,
+    callback: (data: {
+      success: boolean;
+      groupId: string;
+      message: string;
+      timestamp: string;
+    }) => void
+  ) => {
+    socket.on("groupLeft", callback);
   },
 
   // Typing indicators
@@ -428,11 +450,108 @@ export const adminChatSocket = {
     socket.on("roomMessages", callback);
   },
 
-  onRoomMessagesError: (socket: Socket, callback: (error: { message: string }) => void) => {
+  onRoomMessagesError: (
+    socket: Socket,
+    callback: (error: { message: string }) => void
+  ) => {
     socket.on("roomMessagesError", callback);
   },
-  onInvitationError: (socket: Socket, callback: (error: { message?: string, error?: string }) => void) => {
+  onInvitationError: (
+    socket: Socket,
+    callback: (error: { message?: string; error?: string }) => void
+  ) => {
     socket.on("invitationError", callback);
+  },
+
+  // Real-time invitation events
+  onGroupInvitationReceived: (
+    socket: Socket,
+    callback: (data: {
+      inviteIds: string[];
+      groupId: string;
+      invitedBy: string;
+      inviterName: string;
+      inviterRole: string;
+      message?: string;
+      expiresAt?: string;
+      timestamp: string;
+    }) => void
+  ) => {
+    socket.on("groupInvitationReceived", callback);
+  },
+
+  onInvitationsSent: (
+    socket: Socket,
+    callback: (data: {
+      groupId: string;
+      invitedCount: number;
+      invitedBy: string;
+      inviterName: string;
+      timestamp: string;
+    }) => void
+  ) => {
+    socket.on("invitationsSent", callback);
+  },
+
+  onJoinedGroup: (
+    socket: Socket,
+    callback: (data: {
+      groupId: string;
+      message: string;
+      timestamp: string;
+    }) => void
+  ) => {
+    socket.on("joinedGroup", callback);
+  },
+
+  onInvitationDeclined: (
+    socket: Socket,
+    callback: (data: {
+      groupId: string;
+      declinedBy: string;
+      declinedByName: string;
+      reason?: string;
+      timestamp: string;
+    }) => void
+  ) => {
+    socket.on("invitationDeclined", callback);
+  },
+
+  onInvitationResponse: (
+    socket: Socket,
+    callback: (data: {
+      success: boolean;
+      response: "ACCEPT" | "DECLINE";
+      groupId: string;
+      timestamp: string;
+    }) => void
+  ) => {
+    socket.on("invitationResponse", callback);
+  },
+
+  onInvitationResponseError: (
+    socket: Socket,
+    callback: (error: { error: string; timestamp: string }) => void
+  ) => {
+    socket.on("invitationResponseError", callback);
+  },
+
+  onRoomLeft: (
+    socket: Socket,
+    callback: (data: {
+      roomId: string;
+      roomType: "ADMIN_DIRECT" | "ADMIN_GROUP";
+      timestamp: string;
+    }) => void
+  ) => {
+    socket.on("roomLeft", callback);
+  },
+
+  onLeaveRoomError: (
+    socket: Socket,
+    callback: (error: { error: string; timestamp: string }) => void
+  ) => {
+    socket.on("leaveRoomError", callback);
   },
 
   // Read receipts

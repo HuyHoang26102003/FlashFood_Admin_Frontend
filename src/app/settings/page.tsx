@@ -404,24 +404,131 @@ const ConditionalTabContentRender = ({
   switch (selectedTab) {
     case Enum_Tabs.SEEDING:
       return (
-        <Accordion type="single" collapsible>
-          {seedingAccordionItems?.map((item) => (
-            <AccordionItem key={item.id} value={`${item.id}`}>
-              <AccordionTrigger>{item.titleTrigger}</AccordionTrigger>
-              <AccordionContent className="flex gap-4 ">
-                {item.content?.map((item) => (
-                  <Button
-                    onClick={() => item.onClick(router, toast)}
-                    key={item.id}
-                    variant={item.variant}
-                  >
-                    {item.title}
-                  </Button>
-                ))}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        <div className="space-y-6">
+          <div className="text-center space-y-2 mb-8">
+            <h2 className="text-2xl font-bold text-gray-800">
+              Data Seeding Hub
+            </h2>
+            <p className="text-gray-600">
+              Generate and manage test data for your application
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {seedingAccordionItems?.map((item) => (
+              <Card
+                key={item.id}
+                className="group hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary-500"
+              >
+                <CardHeader className="pb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center group-hover:bg-primary-200 transition-colors">
+                      {item.id === 1 && (
+                        <span className="text-primary-600 font-semibold">
+                          👤
+                        </span>
+                      )}
+                      {item.id === 2 && (
+                        <span className="text-primary-600 font-semibold">
+                          🚗
+                        </span>
+                      )}
+                      {item.id === 3 && (
+                        <span className="text-primary-600 font-semibold">
+                          🏪
+                        </span>
+                      )}
+                      {item.id === 4 && (
+                        <span className="text-primary-600 font-semibold">
+                          📞
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-semibold text-gray-800">
+                        {item.titleTrigger}
+                      </CardTitle>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {item.id === 1 &&
+                          "Generate and manage customer accounts"}
+                        {item.id === 2 &&
+                          "Create driver profiles and assignments"}
+                        {item.id === 3 && "Set up restaurant owners and menus"}
+                        {item.id === 4 &&
+                          "Configure customer support representatives"}
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-1 gap-3">
+                    {item.content?.map((action) => (
+                      <Button
+                        onClick={() => action.onClick(router, toast)}
+                        key={action.id}
+                        variant={action.variant}
+                        className={`w-full justify-start h-12 ${
+                          action.variant === "default"
+                            ? "bg-primary-600 hover:bg-primary-700 text-white shadow-md hover:shadow-lg transition-all"
+                            : "border-2 border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-all"
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span className="text-lg">
+                            {action.title.includes("Generate") ? "⚡" : "⚙️"}
+                          </span>
+                          <div className="text-left">
+                            <div className="font-medium">{action.title}</div>
+                            <div className="text-xs opacity-75">
+                              {action.title.includes("Generate")
+                                ? "Create new test data"
+                                : "View and manage existing data"}
+                            </div>
+                          </div>
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Last updated: Just now</span>
+                      <span className="flex items-center space-x-1">
+                        <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                        <span>Active</span>
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <span className="text-2xl">💡</span>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-800 mb-1">Pro Tips</h3>
+                  <p className="text-sm text-gray-600">
+                    Use the "Generate" buttons to create realistic test data.
+                    Always test in a safe environment before using in
+                    production.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-300 hover:bg-blue-100"
+                >
+                  Learn More
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       );
     case Enum_Tabs.PROFILE:
       return (

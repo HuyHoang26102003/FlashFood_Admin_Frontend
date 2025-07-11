@@ -3,10 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAdminStore } from "@/stores/adminStore";
 import { useCustomerCareStore } from "@/stores/customerCareStore";
-import {
-  createAdminChatSocket,
-  adminChatSocket,
-} from "@/lib/adminChatSocket";
+import { createAdminChatSocket, adminChatSocket } from "@/lib/adminChatSocket";
 import {
   AdminChatRoom,
   AdminChatMessage,
@@ -100,10 +97,15 @@ export default function InternalChatPage() {
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const [pendingInvites, setPendingInvites] = useState<PendingInvitation[]>([]);
   const { toast } = useToast();
+  console.log("check pendingInvites", pendingInvites?.[0]);
 
   // Reply functionality
-  const [replyToMessage, setReplyToMessage] = useState<AdminChatMessage | null>(null);
-  const [orderReference, setOrderReference] = useState<OrderReference | null>(null);
+  const [replyToMessage, setReplyToMessage] = useState<AdminChatMessage | null>(
+    null
+  );
+  const [orderReference, setOrderReference] = useState<OrderReference | null>(
+    null
+  );
 
   // Mention states
   const [showMentions, setShowMentions] = useState(false);
@@ -150,9 +152,7 @@ export default function InternalChatPage() {
       setIsMentionLoading(true);
       try {
         const response = await axiosInstance.get(
-          `/admin/group-chat/${
-            selectedRoomRef.current.id
-          }/members?keyword=${query}`
+          `/admin/group-chat/${selectedRoomRef.current.id}/members?keyword=${query}`
         );
         if (response.data.EC === 0) {
           setMentionUsers(response.data.data);
@@ -359,34 +359,92 @@ export default function InternalChatPage() {
           setChatRooms((prev) => [group, ...prev]);
         });
 
-        adminChatSocket.onUserJoinedGroup(socket, ({ room, user }) => {
-          console.log("User joined group:", user, room);
-          if (selectedRoomRef.current?.id === room.id) {
-            setSelectedRoom(room);
+        adminChatSocket.onUserJoinedGroup(socket, (data) => {
+          console.log("User joined group:", data);
+
+          // Check if data exists and has valid fields
+          if (!data || !data.groupId || !data.userId) {
+            console.warn("Invalid data in userJoinedGroup event:", data);
+            return;
           }
-          setChatRooms((prev) =>
-            prev.map((r) => (r.id === room.id ? room : r))
-          );
+
+          const { groupId, userId, userName, userRole } = data;
+
+          // Show notification that someone joined the group
+          toast({
+            title: "New Member",
+            description: `${userName} has joined the group.`,
+          });
+
+          // Re-emit getAdminChats to refresh the entire chat rooms list
+          console.log("Re-fetching all chats due to user joined group");
+          loadChatRooms();
+
+          // If currently viewing this group, refresh room messages
+          if (selectedRoomRef.current?.id === groupId) {
+            console.log("Re-fetching room messages due to user joined group");
+            adminChatSocket.getRoomMessages(socket, {
+              roomId: groupId,
+              limit: 50,
+            });
+          }
         });
 
-        adminChatSocket.onUserLeftGroup(socket, ({ room, user }) => {
-          console.log("User left group:", user.name);
-          const isCurrentUserLeaving = user.userId === currentUser?.id;
+        adminChatSocket.onUserLeftGroup(socket, (data) => {
+          console.log("User left group:", data);
 
-          if (selectedRoomRef.current?.id === room.id) {
-            if (isCurrentUserLeaving) {
-              setSelectedRoom(null);
-            } else {
-              setSelectedRoom(room);
-            }
+          // Check if data exists and has valid fields
+          if (!data || !data.groupId || !data.userId) {
+            console.warn("Invalid data in userLeftGroup event:", data);
+            return;
           }
-          if (isCurrentUserLeaving) {
-            setChatRooms((prev) => prev.filter((r) => r.id !== room.id));
-          } else {
-            setChatRooms((prev) =>
-              prev.map((r) => (r.id === room.id ? room : r))
-            );
+
+          const { groupId, userId, userName } = data;
+
+          // Show notification that someone left the group
+          toast({
+            title: "Member Left",
+            description: `${userName} has left the group.`,
+          });
+
+          // Re-emit getAdminChats to refresh the entire chat rooms list
+          console.log("Re-fetching all chats due to user left group");
+          loadChatRooms();
+
+          // If currently viewing this group, refresh room messages
+          if (selectedRoomRef.current?.id === groupId) {
+            console.log("Re-fetching room messages due to user left group");
+            adminChatSocket.getRoomMessages(socket, {
+              roomId: groupId,
+              limit: 50,
+            });
           }
+        });
+
+        // Handle when the current user leaves a group (confirmation event)
+        adminChatSocket.onGroupLeft(socket, (data) => {
+          console.log("Current user left group:", data);
+
+          if (!data || !data.groupId) {
+            console.warn("Invalid data in groupLeft event:", data);
+            return;
+          }
+
+          // Clear selected room if leaving the currently selected group
+          if (selectedRoomRef.current?.id === data.groupId) {
+            setSelectedRoom(null);
+          }
+
+          // Re-emit getAdminChats to refresh the entire chat rooms list
+          console.log("Re-fetching all chats due to current user left group");
+          loadChatRooms();
+
+          // Show success message
+          toast({
+            title: "Left Group",
+            description:
+              data.message || "You have successfully left the group.",
+          });
         });
 
         adminChatSocket.onGroupSettingsUpdated(
@@ -411,9 +469,22 @@ export default function InternalChatPage() {
 
         adminChatSocket.onParticipantManaged(
           socket,
-          (data: { room: AdminChatRoom; action: string; participant: AdminChatParticipant }) => {
+          (data: {
+            room: AdminChatRoom;
+            action: string;
+            participant: AdminChatParticipant;
+          }) => {
             const { room: updatedRoom, participant, action } = data;
-            
+
+            // Check if room data is valid
+            if (!updatedRoom || !updatedRoom.id) {
+              console.warn(
+                "Invalid room data in participantManaged event:",
+                updatedRoom
+              );
+              return;
+            }
+
             setChatRooms((prev) =>
               prev.map((r) => (r.id === updatedRoom.id ? updatedRoom : r))
             );
@@ -421,10 +492,12 @@ export default function InternalChatPage() {
             if (selectedRoomRef.current?.id === updatedRoom.id) {
               setSelectedRoom(updatedRoom);
             }
-            
+
             toast({
               title: "Participant Update",
-              description: `User ${participant.name || 'member'} was ${action.toLowerCase()} in "${updatedRoom.groupName}".`,
+              description: `User ${participant?.name || "member"} was ${
+                action?.toLowerCase() || "updated"
+              } in "${updatedRoom.groupName}".`,
             });
           }
         );
@@ -433,11 +506,138 @@ export default function InternalChatPage() {
           if (selectedRoomRef.current?.id === data.groupId) {
             setSelectedRoom(null);
           }
-          setChatRooms(prev => prev.filter(r => r.id !== data.groupId));
+          setChatRooms((prev) => prev.filter((r) => r.id !== data.groupId));
           toast({
             title: "You've been removed",
             description: data.reason || "You have been removed from a group.",
-            variant: "destructive"
+            variant: "destructive",
+          });
+        });
+
+        // Real-time invitation events
+        adminChatSocket.onGroupInvitationReceived(socket, (data) => {
+          console.log("New group invitation received:", data);
+          toast({
+            title: "New Group Invitation",
+            description: `${data.inviterName} invited you to join a group.`,
+            action: (
+              <Button
+                onClick={() => loadPendingInvites()}
+                className="bg-blue-500 hover:bg-blue-600 text-white"
+              >
+                View Invites
+              </Button>
+            ),
+          });
+          // Refresh pending invites to show the new one
+          loadPendingInvites();
+        });
+
+        adminChatSocket.onInvitationsSent(socket, (data) => {
+          console.log("Invitations sent notification:", data);
+          toast({
+            title: "Invitations Sent",
+            description: `${data.invitedCount} invitation(s) sent successfully.`,
+          });
+        });
+
+        adminChatSocket.onJoinedGroup(socket, (data) => {
+          console.log("Joined group:", data);
+          toast({
+            title: "Welcome!",
+            description: data.message,
+          });
+
+          // Re-emit getAdminChats to refresh the entire chat rooms list
+          console.log("Re-fetching all chats due to joined group");
+          loadChatRooms();
+
+          // Auto-select the group that was just joined and fetch its messages
+          setTimeout(() => {
+            setChatRooms((prev) => {
+              const joinedRoom = prev.find((room) => room.id === data.groupId);
+              if (joinedRoom) {
+                selectRoom(joinedRoom);
+                // Also refresh messages for the joined room
+                console.log("Re-fetching room messages for joined group");
+                adminChatSocket.getRoomMessages(socket, {
+                  roomId: data.groupId,
+                  limit: 50,
+                });
+              }
+              return prev;
+            });
+          }, 500); // Small delay to ensure chat rooms are loaded
+        });
+
+        adminChatSocket.onInvitationDeclined(socket, (data) => {
+          console.log("Invitation declined:", data);
+          if (selectedRoomRef.current?.id === data.groupId) {
+            toast({
+              title: "Invitation Declined",
+              description: `${data.declinedByName} declined the group invitation.`,
+            });
+          }
+        });
+
+        adminChatSocket.onInvitationResponse(socket, (data) => {
+          console.log("Invitation response:", data);
+          // Response feedback is now handled in handleRespondToInvite
+          // This event is mainly for confirmation that the backend processed it
+        });
+
+        adminChatSocket.onInvitationResponseError(socket, (error) => {
+          console.error("Invitation response error:", error);
+          toast({
+            title: "Error",
+            description: error.error || "Failed to respond to invitation.",
+            variant: "destructive",
+          });
+        });
+
+        adminChatSocket.onRoomLeft(socket, (data) => {
+          console.log("Room left:", data);
+          if (data.roomType === "ADMIN_GROUP") {
+            toast({
+              title: "Left Group",
+              description: "You have successfully left the group.",
+            });
+          }
+        });
+
+        adminChatSocket.onLeaveRoomError(socket, (error) => {
+          console.error("Leave room error:", error);
+          toast({
+            title: "Error",
+            description: error.error || "Failed to leave the group.",
+            variant: "destructive",
+          });
+        });
+
+        // Pending invitations events
+        adminChatSocket.onPendingInvitations(socket, (data) => {
+          console.log("Received pending invitations:", data);
+          console.log(
+            "Invitations structure:",
+            JSON.stringify(data.invitations, null, 2)
+          );
+
+          // Validate and set invitations with fallbacks
+          const validInvitations = (data.invitations || []).map((invite) => ({
+            ...invite,
+            groupName: invite.groupName || "Unknown Group",
+            inviterName: invite.inviterName || "Unknown User",
+          }));
+
+          setPendingInvites(validInvitations);
+        });
+
+        adminChatSocket.onInvitationsError(socket, (error) => {
+          console.error("Error fetching pending invitations:", error);
+          toast({
+            title: "Error",
+            description: error.error || "Failed to fetch pending invitations.",
+            variant: "destructive",
           });
         });
 
@@ -453,6 +653,7 @@ export default function InternalChatPage() {
           console.error("Error receiving room messages:", error);
           setIsMessagesLoading(false);
         });
+
         adminChatSocket.onInvitationError(socket, (error) => {
           console.error("Error sending invitation:", error);
           toast({
@@ -555,13 +756,10 @@ export default function InternalChatPage() {
     }
   };
 
-  const loadPendingInvites = async () => {
+  const loadPendingInvites = () => {
     if (!socketRef.current) return;
     try {
-      const invites = await adminChatSocket.getPendingInvitations(
-        socketRef.current
-      );
-      setPendingInvites(invites);
+      adminChatSocket.getPendingInvitations(socketRef.current);
     } catch (error) {
       console.error("Error fetching pending invitations:", error);
     }
@@ -570,6 +768,10 @@ export default function InternalChatPage() {
   const handleRespondToInvite = useCallback(
     async (inviteId: string, response: "ACCEPT" | "DECLINE") => {
       if (!socketRef.current) return;
+
+      // Find the invitation being responded to
+      const invitation = pendingInvites.find((inv) => inv.id === inviteId);
+
       try {
         const result = await adminChatSocket.respondToInvitation(
           socketRef.current,
@@ -578,14 +780,30 @@ export default function InternalChatPage() {
             response,
           }
         );
+
         if (result.success) {
+          // Remove the invitation from pending list immediately
           setPendingInvites((prev) => prev.filter((i) => i.id !== inviteId));
-          if (response === "ACCEPT" && result.room) {
-            setChatRooms((prev) => [result.room!, ...prev]);
-            selectRoom(result.room!);
+
+          // Also refresh pending invitations from server to ensure sync
+          setTimeout(() => {
+            loadPendingInvites();
+          }, 100);
+
+          if (response === "ACCEPT") {
+            // For accept, we'll get the room via onJoinedGroup event
+            // Just show immediate feedback
             toast({
-              title: "Group Joined",
-              description: `You have successfully joined ${result.room.groupName}.`,
+              title: "Invitation Accepted",
+              description: `Joining ${invitation?.groupName || "group"}...`,
+            });
+          } else {
+            // For decline, show immediate feedback
+            toast({
+              title: "Invitation Declined",
+              description: `You declined the invitation to join ${
+                invitation?.groupName || "group"
+              }.`,
             });
           }
         }
@@ -598,22 +816,39 @@ export default function InternalChatPage() {
         });
       }
     },
-    []
+    [pendingInvites]
   );
 
   const handleLeaveGroup = useCallback(async () => {
-    if (!selectedRoom || !socketRef.current || selectedRoom.type !== "ADMIN_GROUP")
+    if (
+      !selectedRoom ||
+      !socketRef.current ||
+      selectedRoom.type !== "ADMIN_GROUP"
+    )
       return;
+
     try {
-      await adminChatSocket.leaveRoom(socketRef.current, {
+      const groupName = selectedRoom.groupName;
+
+      // Use the leaveRoom event that matches the backend implementation
+      const result = await adminChatSocket.leaveRoom(socketRef.current, {
         roomId: selectedRoom.id,
         roomType: "ADMIN_GROUP",
       });
-      // UI will update via onUserLeftGroup event
-      toast({
-        title: "Group Left",
-        description: `You have left ${selectedRoom.groupName}.`,
-      });
+
+      if (result.success) {
+        // Clear the selected room immediately
+        setSelectedRoom(null);
+
+        // Re-emit getAdminChats to refresh the entire chat rooms list
+        console.log("Re-fetching all chats due to manual group leave");
+        loadChatRooms();
+
+        toast({
+          title: "Group Left",
+          description: `You have left ${groupName}.`,
+        });
+      }
     } catch (error) {
       console.error("Error leaving group:", error);
       toast({
@@ -663,7 +898,12 @@ export default function InternalChatPage() {
   };
 
   const sendMessage = async () => {
-    if (isSendingMessage || !newMessage.trim() || !selectedRoom || !socketRef.current)
+    if (
+      isSendingMessage ||
+      !newMessage.trim() ||
+      !selectedRoom ||
+      !socketRef.current
+    )
       return;
 
     setIsSendingMessage(true);
@@ -683,7 +923,9 @@ export default function InternalChatPage() {
       const payload = {
         roomId: selectedRoom.id,
         content: newMessage.trim(),
-        messageType: orderReference ? MessageType.ORDER_REFERENCE : MessageType.TEXT,
+        messageType: orderReference
+          ? MessageType.ORDER_REFERENCE
+          : MessageType.TEXT,
         taggedUsers:
           taggedUsers.length > 0
             ? taggedUsers.map((user) => user.id)
@@ -710,21 +952,24 @@ export default function InternalChatPage() {
     if (!taggedUsersDetails || taggedUsersDetails.length === 0) {
       return <span>{content}</span>;
     }
-  
-    const userMap = new Map(taggedUsersDetails.map(u => [u.fullName, u]));
-    const names = taggedUsersDetails.map(u => u.fullName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
-    
+
+    const userMap = new Map(taggedUsersDetails.map((u) => [u.fullName, u]));
+    const names = taggedUsersDetails.map((u) =>
+      u.fullName.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")
+    );
+
     if (names.length === 0) {
-        return <span>{content}</span>;
+      return <span>{content}</span>;
     }
 
-    const regex = new RegExp(`@(${names.join('|')})`, 'g');
+    const regex = new RegExp(`@(${names.join("|")})`, "g");
     const parts = content.split(regex);
 
     return (
       <span>
         {parts.map((part, index) => {
-          if (index % 2 === 1) { // This will be the full name captured by the regex
+          if (index % 2 === 1) {
+            // This will be the full name captured by the regex
             const user = userMap.get(part);
             if (user) {
               return (
@@ -807,7 +1052,6 @@ export default function InternalChatPage() {
     );
   }
 
-
   return (
     <div className="flex mt-4 max-h-[calc(100vh-10rem)]">
       {/* Sidebar */}
@@ -878,43 +1122,98 @@ export default function InternalChatPage() {
 
         {/* Pending Invites */}
         {pendingInvites.length > 0 && (
-          <div className="p-4 border-t border-gray-200">
-            <h3 className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Invitations
-            </h3>
-            <div className="mt-2 space-y-1">
-              {pendingInvites.map((invite) => (
-                <div
-                  key={invite.id}
-                  className="p-2 rounded-lg bg-yellow-100 text-yellow-800"
-                >
-                  <p className="text-sm font-medium">
-                    Join <strong>{invite.group.name}</strong>
+          <div className="p-4 border-t border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-blue-700 flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                Group Invitations ({pendingInvites.length})
+              </h3>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                {pendingInvites.length} pending
+              </Badge>
+            </div>
+            <div className="space-y-3">
+              {pendingInvites.filter(
+                (invite) => invite && invite.groupName && invite.inviterName
+              ).length > 0 ? ( // Filter out invalid invites
+                pendingInvites
+                  .filter(
+                    (invite) => invite && invite.groupName && invite.inviterName
+                  )
+                  .map((invite) => (
+                    <div
+                      key={invite.id}
+                      className="p-3 rounded-lg bg-white border border-blue-200 shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900 mb-1">
+                            <strong className="text-blue-600">
+                              {invite?.groupName || "Unknown Group"}
+                            </strong>
+                          </p>
+                          <p className="text-xs text-gray-600 mb-2">
+                            Invited by{" "}
+                            <span className="font-medium">
+                              {invite.inviterName || "Unknown User"}
+                            </span>
+                          </p>
+                          {invite.message && (
+                            <p className="text-xs text-gray-500 italic mb-2 p-2 bg-gray-50 rounded">
+                              "{invite.message}"
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-xs text-gray-500">
+                                Expires:{" "}
+                                {invite.expiresAt
+                                  ? new Date(
+                                      invite.expiresAt
+                                    ).toLocaleDateString()
+                                  : "Never"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                                onClick={() =>
+                                  handleRespondToInvite(invite.id, "DECLINE")
+                                }
+                              >
+                                Decline
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs bg-blue-500 hover:bg-blue-600 text-white"
+                                onClick={() =>
+                                  handleRespondToInvite(
+                                    invite.inviteId,
+                                    "ACCEPT"
+                                  )
+                                }
+                              >
+                                Accept
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500">
+                    No valid invitations found
                   </p>
-                  <p className="text-xs">from {invite.inviter.name}</p>
-                  <div className="flex items-center justify-end gap-2 mt-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7"
-                      onClick={() => handleRespondToInvite(invite.id, "DECLINE")}
-                    >
-                      Decline
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="h-7 bg-yellow-400 hover:bg-yellow-500 text-yellow-900"
-                      onClick={() => handleRespondToInvite(invite.id, "ACCEPT")}
-                    >
-                      Accept
-                    </Button>
-                  </div>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
-
 
         {/* Chat List */}
         <ScrollArea className="flex-1 w-full ">
@@ -1119,7 +1418,7 @@ export default function InternalChatPage() {
                           msg.senderDetails && (
                             <Avatar className="w-8 h-8">
                               <AvatarImage
-                                src={msg.senderDetails.avatar}
+                                src={msg.senderDetails.avatar?.url || undefined}
                                 alt={msg.senderDetails.name}
                                 className="bg-primary-400"
                               />
@@ -1149,7 +1448,14 @@ export default function InternalChatPage() {
                               )}
                             {replyInfo && (
                               <div className="mb-2 p-2 bg-black/10 rounded border-l-2 border-primary">
-                                <p className={cn("text-xs font-medium", msg.senderId === currentUser?.id ? "text-gray-200" : "text-gray-700")}>
+                                <p
+                                  className={cn(
+                                    "text-xs font-medium",
+                                    msg.senderId === currentUser?.id
+                                      ? "text-gray-200"
+                                      : "text-gray-700"
+                                  )}
+                                >
                                   Replying to{" "}
                                   {replyInfo.senderName || "Unknown User"}
                                 </p>
@@ -1270,7 +1576,8 @@ export default function InternalChatPage() {
                 <div className="mb-3 p-2 bg-blue-50 rounded border-l-2 border-blue-500 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-medium text-blue-700">
-                      Replying to {replyToMessage.senderDetails?.name || "Unknown User"}
+                      Replying to{" "}
+                      {replyToMessage.senderDetails?.name || "Unknown User"}
                     </p>
                     <p className="text-xs text-blue-600 truncate">
                       {replyToMessage.content}
@@ -1294,10 +1601,13 @@ export default function InternalChatPage() {
                     <Package className="h-4 w-4 text-orange-500" />
                     <div>
                       <p className="text-xs font-medium text-orange-700">
-                        Order #{orderReference.orderId} - {orderReference.customerName}
+                        Order #{orderReference.orderId} -{" "}
+                        {orderReference.customerName}
                       </p>
                       <p className="text-xs text-orange-600">
-                        {orderReference.restaurantName} • ${orderReference.totalAmount} • {orderReference.urgencyLevel}
+                        {orderReference.restaurantName} • $
+                        {orderReference.totalAmount} •{" "}
+                        {orderReference.urgencyLevel}
                       </p>
                     </div>
                   </div>
@@ -1350,7 +1660,8 @@ export default function InternalChatPage() {
                         // TODO: Implement file upload
                         toast({
                           title: "Coming Soon",
-                          description: "File upload functionality will be implemented soon.",
+                          description:
+                            "File upload functionality will be implemented soon.",
                         });
                       }}
                     >

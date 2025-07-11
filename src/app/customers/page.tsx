@@ -1,13 +1,5 @@
 "use client";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { SimplePagination } from "@/components/ui/pagination";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -738,103 +730,11 @@ const Page = () => {
               ))}
             </TableBody>
           </Table>
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  className={
-                    currentPage === 1 ? "pointer-events-none opacity-50" : ""
-                  }
-                />
-              </PaginationItem>
-              {(() => {
-                const pages = [];
-                if (totalPages <= 4) {
-                  // If total pages is 4 or less, show all pages
-                  for (let i = 1; i <= totalPages; i++) {
-                    pages.push(
-                      <PaginationItem key={i}>
-                        <PaginationLink
-                          onClick={() => handlePageChange(i)}
-                          isActive={currentPage === i}
-                        >
-                          {i}
-                        </PaginationLink>
-                      </PaginationItem>
-                    );
-                  }
-                } else {
-                  // Always show first page
-                  pages.push(
-                    <PaginationItem key={1}>
-                      <PaginationLink
-                        onClick={() => handlePageChange(1)}
-                        isActive={currentPage === 1}
-                      >
-                        1
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-
-                  // Show dots if current page is more than 2
-                  if (currentPage > 2) {
-                    pages.push(
-                      <PaginationItem key="ellipsis1">
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    );
-                  }
-
-                  // Show current page if it's not first or last
-                  if (currentPage !== 1 && currentPage !== totalPages) {
-                    pages.push(
-                      <PaginationItem key={currentPage}>
-                        <PaginationLink
-                          onClick={() => handlePageChange(currentPage)}
-                          isActive={true}
-                        >
-                          {currentPage}
-                        </PaginationLink>
-                      </PaginationItem>
-                    );
-                  }
-
-                  // Show dots if current page is less than totalPages - 1
-                  if (currentPage < totalPages - 1) {
-                    pages.push(
-                      <PaginationItem key="ellipsis2">
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    );
-                  }
-
-                  // Always show last page
-                  pages.push(
-                    <PaginationItem key={totalPages}>
-                      <PaginationLink
-                        onClick={() => handlePageChange(totalPages)}
-                        isActive={currentPage === totalPages}
-                      >
-                        {totalPages}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                }
-                return pages;
-              })()}
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  className={
-                    currentPage === totalPages
-                      ? "pointer-events-none opacity-50"
-                      : ""
-                  }
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+          <SimplePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
         </div>
       </div>
 
