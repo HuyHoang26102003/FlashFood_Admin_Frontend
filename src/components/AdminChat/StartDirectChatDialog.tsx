@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,15 +13,16 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Search, User } from "lucide-react";
+import { MessageCircle, Search, User, Loader2 } from "lucide-react";
 import { adminChatSocket } from "@/lib/adminChatSocket";
 import { StartDirectChatPayload } from "@/types/admin-chat";
 import axiosInstance from "@/lib/axios";
+import { Socket } from "socket.io-client";
 
 interface StartDirectChatDialogProps {
-  socket: any;
+  socket: Socket | null;
   currentUserId: string;
   onChatStarted?: (chat: any) => void;
   trigger?: React.ReactNode;
@@ -29,10 +30,14 @@ interface StartDirectChatDialogProps {
 
 interface AdminUser {
   id: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  role: string;
-  avatar?: string;
+  logged_in_as: string;
+  avatar?: {
+    key: string;
+    url: string;
+  };
   isOnline?: boolean;
 }
 
@@ -44,51 +49,15 @@ export default function StartDirectChatDialog({
 }: StartDirectChatDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [priority, setPriority] = useState<
     "low" | "medium" | "high" | "critical"
   >("medium");
   const [category, setCategory] = useState("");
-
-  // Mock admin users - in real app, this would come from an API
-  const [adminUsers] = useState<AdminUser[]>([
-    {
-      id: "admin1",
-      name: "John Smith",
-      email: "john@flashfood.com",
-      role: "SUPER_ADMIN",
-      isOnline: true,
-    },
-    {
-      id: "admin2",
-      name: "Sarah Johnson",
-      email: "sarah@flashfood.com",
-      role: "FINANCE_ADMIN",
-      isOnline: false,
-    },
-    {
-      id: "admin3",
-      name: "Mike Wilson",
-      email: "mike@flashfood.com",
-      role: "COMPANION_ADMIN",
-      isOnline: true,
-    },
-    {
-      id: "cc1",
-      name: "Lisa Brown",
-      email: "lisa@flashfood.com",
-      role: "CUSTOMER_CARE_REPRESENTATIVE",
-      isOnline: true,
-    },
-    {
-      id: "cc2",
-      name: "David Lee",
-      email: "david@flashfood.com",
-      role: "CUSTOMER_CARE_REPRESENTATIVE",
-      isOnline: false,
-    },
-  ]);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const categories = [
     "General",
@@ -121,20 +90,59 @@ export default function StartDirectChatDialog({
     }
   };
 
-  const filteredUsers = adminUsers.filter(
-    (user) =>
-      user.id !== currentUserId &&
-      (user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        getRoleLabel(user.role)
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()))
-  );
+  const getFullName = (user: AdminUser) => {
+    return `${user.first_name || ""} ${user.last_name || ""}`.trim();
+  };
+
+  // Search for users using the API
+  const searchUsers = async (query: string) => {
+    if (!query.trim()) {
+      setAdminUsers([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await axiosInstance.get(
+        `/admin/internal-users/search?keyword=${encodeURIComponent(query)}`
+      );
+
+      if (response.data.EC === 0) {
+        // Filter out current user
+        const users = response.data.data.filter(
+          (user: AdminUser) => user.id !== currentUserId
+        );
+        setAdminUsers(users);
+      } else {
+        setAdminUsers([]);
+      }
+    } catch (error) {
+      console.error("Error searching users:", error);
+      setAdminUsers([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Handle search input with debouncing
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Set new timeout for debounced search
+    searchTimeoutRef.current = setTimeout(() => {
+      searchUsers(value);
+    }, 300);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedUser) {
+    if (!selectedUser || !socket) {
       return;
     }
 
@@ -147,6 +155,8 @@ export default function StartDirectChatDialog({
         priority: priority,
       };
 
+      console.log("checekc waht apualoda", payload);
+
       const chat = await adminChatSocket.startDirectChat(socket, payload);
 
       onChatStarted?.(chat);
@@ -157,6 +167,7 @@ export default function StartDirectChatDialog({
       setSearchQuery("");
       setCategory("");
       setPriority("medium");
+      setAdminUsers([]);
     } catch (error) {
       console.error("Error starting direct chat:", error);
     } finally {
@@ -164,14 +175,13 @@ export default function StartDirectChatDialog({
     }
   };
 
+  // Clean up timeout on unmount
   useEffect(() => {
-    const fetchAdminUsers = async () => {
-      const response = await axiosInstance.get("/admin");
-      const { EC, EM, data } = response.data;
-      console.log("check data", data);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
     };
-    fetchAdminUsers();
-    console.log("cehck fetch here");
   }, []);
 
   return (
@@ -207,15 +217,20 @@ export default function StartDirectChatDialog({
                 <Input
                   placeholder="Search users..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10"
                 />
+                {isSearching && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                  </div>
+                )}
               </div>
             </div>
 
             {/* User List */}
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {filteredUsers.map((user) => (
+              {adminUsers.map((user) => (
                 <div
                   key={user.id}
                   className={`p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -227,15 +242,23 @@ export default function StartDirectChatDialog({
                 >
                   <div className="flex items-center space-x-3">
                     <Avatar className="h-10 w-10">
-                      <div className="w-full h-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center text-white font-medium">
-                        {user.name[0].toUpperCase()}
-                      </div>
+                      <AvatarImage
+                        src={user.avatar?.url}
+                        alt={getFullName(user)}
+                      />
+                      <AvatarFallback className="bg-gradient-to-r from-green-500 to-blue-600 text-white font-medium">
+                        {(
+                          user.first_name?.[0] ||
+                          user.email?.[0] ||
+                          "?"
+                        ).toUpperCase()}
+                      </AvatarFallback>
                     </Avatar>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
                         <h4 className="font-medium text-gray-900 truncate">
-                          {user.name}
+                          {getFullName(user) || user.email}
                         </h4>
                         {user.isOnline && (
                           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -245,19 +268,21 @@ export default function StartDirectChatDialog({
                         {user.email}
                       </p>
                       <Badge variant="secondary" className="mt-1">
-                        {getRoleLabel(user.role)}
+                        {getRoleLabel(user.logged_in_as)}
                       </Badge>
                     </div>
                   </div>
                 </div>
               ))}
 
-              {filteredUsers.length === 0 && (
-                <div className="text-center py-8">
-                  <User className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No users found</p>
-                </div>
-              )}
+              {adminUsers.length === 0 &&
+                !isSearching &&
+                searchQuery.trim() && (
+                  <div className="text-center py-8">
+                    <User className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">No users found</p>
+                  </div>
+                )}
             </div>
 
             {selectedUser && (

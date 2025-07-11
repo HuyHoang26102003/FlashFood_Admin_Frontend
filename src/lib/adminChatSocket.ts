@@ -243,9 +243,25 @@ export const adminChatSocket = {
 
   onDirectChatStarted: (
     socket: Socket,
-    callback: (room: AdminChatRoom) => void
+    callback: (data: {
+      chatId: string;
+      withUser: string;
+      withUserName?: string;
+      withUserRole?: string;
+      category?: string;
+      priority?: string;
+      success?: boolean;
+      timestamp: string;
+    }) => void
   ) => {
     socket.on("directChatStarted", callback);
+  },
+
+  onDirectChatError: (
+    socket: Socket,
+    callback: (error: { error: string; timestamp: string }) => void
+  ) => {
+    socket.on("directChatError", callback);
   },
 
   // Messaging
@@ -731,11 +747,36 @@ export const adminChatSocket = {
   onParticipantManaged: (
     socket: Socket,
     callback: (data: {
-      room: AdminChatRoom;
-      action: string;
-      participant: AdminChatParticipant;
+      groupId: string;
+      participantId: string;
+      action: "PROMOTE" | "DEMOTE" | "REMOVE";
+      newRole?: "CREATOR" | "ADMIN" | "MEMBER";
+      managedBy: string;
+      managerName: string;
+      reason?: string;
+      timestamp: string;
     }) => void
   ) => {
     socket.on("participantManaged", callback);
+  },
+
+  onRemovedFromGroup: (
+    socket: Socket,
+    callback: (data: {
+      groupId: string;
+      reason?: string;
+      removedBy: string;
+      removedByName: string;
+      timestamp: string;
+    }) => void
+  ) => {
+    socket.on("removedFromGroup", callback);
+  },
+
+  onParticipantManageError: (
+    socket: Socket,
+    callback: (error: { error: string; timestamp: string }) => void
+  ) => {
+    socket.on("participantManageError", callback);
   },
 };

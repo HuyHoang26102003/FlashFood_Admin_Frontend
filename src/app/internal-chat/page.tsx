@@ -80,11 +80,6 @@ interface GroupSettingsUpdate {
   newSettings: Partial<AdminChatRoom>;
 }
 
-interface RemovedFromGroupUpdate {
-  groupId: string;
-  reason: string;
-}
-
 export default function InternalChatPage() {
   const [chatRooms, setChatRooms] = useState<AdminChatRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<AdminChatRoom | null>(null);
@@ -349,9 +344,27 @@ export default function InternalChatPage() {
           );
         });
 
-        adminChatSocket.onDirectChatStarted(socket, (room) => {
-          console.log("Direct chat started:", room);
-          setChatRooms((prev) => [room, ...prev]);
+        adminChatSocket.onDirectChatStarted(socket, (data) => {
+          console.log("Direct chat started:", data);
+
+          // Refresh chat rooms to get the new direct chat
+          loadChatRooms();
+
+          toast({
+            title: "Direct Chat Started",
+            description: data.withUserName
+              ? `Direct chat started with ${data.withUserName}`
+              : "Direct chat started successfully",
+          });
+        });
+
+        adminChatSocket.onDirectChatError(socket, (error) => {
+          console.error("Direct chat error:", error);
+          toast({
+            title: "Error",
+            description: error.error || "Failed to start direct chat.",
+            variant: "destructive",
+          });
         });
 
         adminChatSocket.onGroupCreated(socket, (group) => {
@@ -467,49 +480,70 @@ export default function InternalChatPage() {
           }
         );
 
-        adminChatSocket.onParticipantManaged(
-          socket,
-          (data: {
-            room: AdminChatRoom;
-            action: string;
-            participant: AdminChatParticipant;
-          }) => {
-            const { room: updatedRoom, participant, action } = data;
+        adminChatSocket.onParticipantManaged(socket, (data) => {
+          console.log("Participant managed:", data);
 
-            // Check if room data is valid
-            if (!updatedRoom || !updatedRoom.id) {
-              console.warn(
-                "Invalid room data in participantManaged event:",
-                updatedRoom
-              );
-              return;
-            }
+          // Check if data is valid
+          if (!data || !data.groupId) {
+            console.warn("Invalid data in participantManaged event:", data);
+            return;
+          }
 
-            setChatRooms((prev) =>
-              prev.map((r) => (r.id === updatedRoom.id ? updatedRoom : r))
-            );
+          const { groupId, action, managerName, reason } = data;
 
-            if (selectedRoomRef.current?.id === updatedRoom.id) {
-              setSelectedRoom(updatedRoom);
-            }
+          // Show notification about the action
+          toast({
+            title: "Participant Update",
+            description: `${managerName} ${action.toLowerCase()}d a member${
+              reason ? `: ${reason}` : "."
+            }`,
+          });
 
-            toast({
-              title: "Participant Update",
-              description: `User ${participant?.name || "member"} was ${
-                action?.toLowerCase() || "updated"
-              } in "${updatedRoom.groupName}".`,
+          // Re-emit getAdminChats to refresh the entire chat rooms list
+          console.log("Re-fetching all chats due to participant managed");
+          loadChatRooms();
+
+          // If currently viewing this group, refresh room messages
+          if (selectedRoomRef.current?.id === groupId) {
+            console.log("Re-fetching room messages due to participant managed");
+            adminChatSocket.getRoomMessages(socket, {
+              roomId: groupId,
+              limit: 50,
             });
           }
-        );
+        });
 
-        socket.on("removedFromGroup", (data: RemovedFromGroupUpdate) => {
+        adminChatSocket.onRemovedFromGroup(socket, (data) => {
+          console.log("Removed from group:", data);
+
+          if (!data || !data.groupId) {
+            console.warn("Invalid data in removedFromGroup event:", data);
+            return;
+          }
+
+          // Clear selected room if removed from currently selected group
           if (selectedRoomRef.current?.id === data.groupId) {
             setSelectedRoom(null);
           }
-          setChatRooms((prev) => prev.filter((r) => r.id !== data.groupId));
+
+          // Re-emit getAdminChats to refresh the entire chat rooms list
+          console.log("Re-fetching all chats due to removal from group");
+          loadChatRooms();
+
           toast({
-            title: "You've been removed",
-            description: data.reason || "You have been removed from a group.",
+            title: "Removed from Group",
+            description: data.reason
+              ? `You were removed by ${data.removedByName}: ${data.reason}`
+              : `You were removed from the group by ${data.removedByName}.`,
+            variant: "destructive",
+          });
+        });
+
+        adminChatSocket.onParticipantManageError(socket, (error) => {
+          console.error("Participant manage error:", error);
+          toast({
+            title: "Error",
+            description: error.error || "Failed to manage participant.",
             variant: "destructive",
           });
         });
@@ -1026,9 +1060,10 @@ export default function InternalChatPage() {
   const filteredRooms = chatRooms.filter(
     (room) =>
       room.groupName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      room.participants.some((p) =>
-        p.name?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      (room.participants &&
+        room.participants.some((p) =>
+          p.name?.toLowerCase().includes(searchQuery.toLowerCase())
+        ))
   );
 
   useEffect(() => {
@@ -1181,7 +1216,10 @@ export default function InternalChatPage() {
                                 variant="outline"
                                 className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50"
                                 onClick={() =>
-                                  handleRespondToInvite(invite.id, "DECLINE")
+                                  handleRespondToInvite(
+                                    invite.inviteId,
+                                    "DECLINE"
+                                  )
                                 }
                               >
                                 Decline
@@ -1418,7 +1456,11 @@ export default function InternalChatPage() {
                           msg.senderDetails && (
                             <Avatar className="w-8 h-8">
                               <AvatarImage
-                                src={msg.senderDetails.avatar?.url || undefined}
+                                src={
+                                  typeof msg?.senderDetails?.avatar === "object"
+                                    ? msg.senderDetails.avatar?.url
+                                    : msg?.senderDetails?.avatar || undefined
+                                }
                                 alt={msg.senderDetails.name}
                                 className="bg-primary-400"
                               />

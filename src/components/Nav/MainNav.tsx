@@ -74,7 +74,7 @@ const MainNav = () => {
                 </div>
               </PopoverTrigger>
               <PopoverContent
-                className="w-48 p-2 z-[1000] bg-green-300"
+                className="w-48 p-2 z-[1000] "
                 side="top"
                 align="center"
                 sideOffset={8}
