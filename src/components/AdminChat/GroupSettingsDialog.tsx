@@ -98,7 +98,7 @@ export default function GroupSettingsDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="w-full max-w-2xl">
+      <DialogContent className="w-full h-[90%]  overflow-y-auto max-w-2xl">
         <DialogHeader>
           <DialogTitle>Group Settings: {room.groupName}</DialogTitle>
           <DialogDescription>
@@ -149,7 +149,10 @@ export default function GroupSettingsDialog({
             <h4 className="font-medium">Participants</h4>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {room.participants.map((p) => (
-                <div key={p.userId} className="flex items-center justify-between">
+                <div
+                  key={p.userId}
+                  className="flex items-center justify-between"
+                >
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">
                       <AvatarImage src={p.avatar} />
@@ -169,7 +172,11 @@ export default function GroupSettingsDialog({
                   {canManageSettings && p.userId !== currentUserId && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -177,17 +184,25 @@ export default function GroupSettingsDialog({
                         {p.role === "MEMBER" && (
                           <DropdownMenuItem
                             onClick={() =>
-                              handleManageParticipant(p.userId, "PROMOTE", "ADMIN")
+                              handleManageParticipant(
+                                p.userId,
+                                "PROMOTE",
+                                "ADMIN"
+                              )
                             }
                           >
                             <Shield className="mr-2 h-4 w-4" />
-                            <span>Promote to Admin</span>
+                            <span>Promote to group administrator</span>
                           </DropdownMenuItem>
                         )}
                         {p.role === "ADMIN" && (
                           <DropdownMenuItem
                             onClick={() =>
-                              handleManageParticipant(p.userId, "DEMOTE", "MEMBER")
+                              handleManageParticipant(
+                                p.userId,
+                                "DEMOTE",
+                                "MEMBER"
+                              )
                             }
                           >
                             <UserCheck className="mr-2 h-4 w-4" />
@@ -196,7 +211,9 @@ export default function GroupSettingsDialog({
                         )}
                         <DropdownMenuItem
                           className="text-red-500"
-                          onClick={() => handleManageParticipant(p.userId, "REMOVE")}
+                          onClick={() =>
+                            handleManageParticipant(p.userId, "REMOVE")
+                          }
                         >
                           <UserX className="mr-2 h-4 w-4" />
                           <span>Remove from Group</span>
@@ -220,4 +237,4 @@ export default function GroupSettingsDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}

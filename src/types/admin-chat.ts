@@ -155,16 +155,15 @@ export interface FileAttachment {
 
 export interface PendingInvitation {
   id: string;
-  group: {
-    id: string;
-    name: string;
-  };
-  inviter: {
-    id: string;
-    name: string;
-  };
+  groupId: string;
+  groupName: string;
+  groupDescription?: string;
+  inviteId: string;
+  inviterId: string;
+  inviterName: string;
+  inviterRole?: string;
   message?: string;
-  expiresAt: string;
+  expiresAt?: string;
 }
 
 // Socket event payloads
