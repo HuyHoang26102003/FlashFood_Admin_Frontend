@@ -44,6 +44,9 @@ import { Spinner } from "@/components/Spinner";
 import FallbackImage from "@/components/FallbackImage";
 import { Card, CardContent } from "@/components/ui/card";
 import IdCell from "@/components/IdCell";
+import { useRouter } from "next/navigation";
+import { useAdminStore } from "@/stores/adminStore";
+import { useCustomerCareStore } from "@/stores/customerCareStore";
 
 export type Promotion = {
   id: string;
@@ -449,6 +452,22 @@ const Page = () => {
       console.error("Error uploading image:", error);
     }
   };
+
+  const router = useRouter();
+
+  const adminStore = useAdminStore.getState();
+  const customerCareStore = useCustomerCareStore.getState();
+  const currentLoggedInUser = adminStore.isAuthenticated
+    ? adminStore.user
+    : customerCareStore.user;
+  useEffect(() => {
+    if (
+      currentLoggedInUser?.logged_in_as !== "SUPER_ADMIN" &&
+      currentLoggedInUser?.logged_in_as !== "FINANCE_ADMIN"
+    ) {
+      router.push("/");
+    }
+  }, [currentLoggedInUser]);
 
   return (
     <div>

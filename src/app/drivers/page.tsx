@@ -165,7 +165,7 @@ export default function DriversPage() {
     setSelectedDriver(driver);
     try {
       const orders = await driverService.getDriverOrders(driver.id);
-      setDriverOrders(orders.data);
+      setDriverOrders(orders.data.data ?? orders.data);
       setIsOrderDialogOpen(true);
     } catch (error) {
       console.error("Error fetching driver orders:", error);

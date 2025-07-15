@@ -181,9 +181,11 @@ const ListInquiries = ({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-        <Select 
-          value={priorityFilter} 
-          onValueChange={(value) => setPriorityFilter(value as ENUM_INQUIRY_PRIORITY | "ALL")}
+        <Select
+          value={priorityFilter}
+          onValueChange={(value) =>
+            setPriorityFilter(value as ENUM_INQUIRY_PRIORITY | "ALL")
+          }
         >
           <SelectTrigger className="w-40 bg-white border">
             <SelectValue placeholder="Select Priority" />
@@ -196,9 +198,11 @@ const ListInquiries = ({
             <SelectItem value={ENUM_INQUIRY_PRIORITY.LOW}>Low</SelectItem>
           </SelectContent>
         </Select>
-        <Select 
-          value={statusFilter} 
-          onValueChange={(value) => setStatusFilter(value as ENUM_INQUIRY_STATUS | "ALL")}
+        <Select
+          value={statusFilter}
+          onValueChange={(value) =>
+            setStatusFilter(value as ENUM_INQUIRY_STATUS | "ALL")
+          }
         >
           <SelectTrigger className="w-32 bg-white border">
             <SelectValue placeholder="Status" />
@@ -386,33 +390,35 @@ const InquiryDetails = ({
       console.log("check plz fill all fields");
       return;
     }
-    
+
     setIsLoading(true);
     setIsSubmitting(true);
-    
+
     const currentTime = Math.floor(Date.now() / 1000);
-    
+
     const requestBody = {
       status,
       priority,
       issue_type: issueType,
-      resolution_type: status === ENUM_INQUIRY_STATUS.RESOLVED ? resolutionType : undefined,
+      resolution_type:
+        status === ENUM_INQUIRY_STATUS.RESOLVED ? resolutionType : undefined,
       resolution_notes: resolutionNotes,
       last_response_at: currentTime,
-      resolved_at: status === ENUM_INQUIRY_STATUS.RESOLVED ? currentTime : undefined,
+      resolved_at:
+        status === ENUM_INQUIRY_STATUS.RESOLVED ? currentTime : undefined,
       first_response_at: inquiry.first_response_at || currentTime,
     };
 
     console.log("check req", requestBody, "check inquiry id", inquiry?.id);
-    
+
     try {
       const response = await axiosInstance.patch(
         `customer-care-inquiries/${inquiry.id}`,
         requestBody
       );
-      
+
       console.log("Saving changes...", response, response.data);
-      
+
       if (response.data.EC === 0) {
         fetchInquiries();
         onBack();
@@ -451,7 +457,7 @@ const InquiryDetails = ({
             )}
           </div>
           <div className="text-sm text-gray-500">
-            Created: {formatEpochToRelativeTime(inquiry.created_at)} ago
+            Created: {formatEpochToRelativeTime(inquiry.created_at)}
           </div>
         </CardHeader>
         <CardContent className="space-y-6">

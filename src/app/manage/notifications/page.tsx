@@ -261,16 +261,10 @@ const page = () => {
   ) => {
     const formData = new FormData();
     Array.from(files).forEach((file) => formData.append("file", file));
-    formData.append(
-      "upload_preset",
-      `${process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET}`
-    );
+    formData.append("file", selectedImage);
 
     try {
-      const response = await axios.post(
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-        formData
-      );
+      const response = await axiosInstance.post(`upload/image`, formData);
       const { public_id, secure_url } = response.data;
       const uploadedImage = { key: public_id, url: secure_url };
 
