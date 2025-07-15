@@ -54,8 +54,22 @@ const AdminDashboard = () => {
     (state) => state.preferences
   );
 
+  // Ref to track recently notified emails to prevent duplicates
+  const recentlyNotifiedEmailsRef = React.useRef<Set<string>>(new Set());
+
   React.useEffect(() => {
     const handleNewEntity = (data: NewlyCreatedEntityPayload) => {
+      // Prevent duplicate notifications for the same email in a short period
+      if (data.entity_email) {
+        if (recentlyNotifiedEmailsRef.current.has(data.entity_email)) {
+          return; // Already notified for this email, skip.
+        }
+        // Add email to the set and remove it after a delay
+        recentlyNotifiedEmailsRef.current.add(data.entity_email);
+        setTimeout(() => {
+          recentlyNotifiedEmailsRef.current.delete(data.entity_email as string);
+        }, HIGHLIGHT_DURATION);
+      }
       const ent = data.entity_name.toLowerCase();
 
       // Determine highlight targets based on entity type
