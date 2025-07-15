@@ -5,6 +5,7 @@ export interface UserSearchResult {
   type: "customer_care" | "admin" | "customer" | "driver" | "restaurant";
   first_name: string;
   last_name: string;
+  owner_name?: string;
   restaurant_name?:string;
   avatar: {
     key: string;

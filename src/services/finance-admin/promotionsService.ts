@@ -42,13 +42,13 @@ export const promotionsService = {
   createPromotion: async (promotion: Omit<Promotion, "id">) => {
     const response = await axiosInstance.post(
       `finance-admin${API_ENDPOINTS.PROMOTIONS}`,
-      promotion
+      {...promotion, id: undefined}
     );
     return response.data;
   },
 
   updatePromotion: async (id: string, promotion: Partial<Promotion>) => {
-    const response = await axiosInstance.put(
+    const response = await axiosInstance.patch(
       `${API_ENDPOINTS.PROMOTIONS}/${id}`,
       promotion
     );

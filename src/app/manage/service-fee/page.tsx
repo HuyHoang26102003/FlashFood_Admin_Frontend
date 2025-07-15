@@ -32,7 +32,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { HARDED_CODE_DATA } from "@/utils/harded_code_data";
+import { useAdminStore } from "@/stores/adminStore";
+import { Spinner } from "@/components/Spinner";
+import { SimplePagination } from "@/components/ui/pagination";
+import { useToast } from "@/hooks/use-toast";
 
 // Định nghĩa type cho finance rule
 interface DriverFixedWage {
@@ -55,28 +58,40 @@ interface FinanceRule {
   updated_at?: number;
 }
 
-const page = () => {
+const FinanceRulePage = () => {
+  const adminStore = useAdminStore((state) => state.user);
+
   const [rules, setRules] = useState<FinanceRule[]>([]);
   const [selectedRule, setSelectedRule] = useState<FinanceRule | null>(null);
   const [newRule, setNewRule] = useState<FinanceRule | null>(null);
   const [openEdit, setOpenEdit] = useState<boolean>(false);
   const [openAdd, setOpenAdd] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const { toast } = useToast();
 
   const fetchRules = async () => {
+    setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/finance-rules");
-      const { EC, EM, data } = response.data;
-      if (EC === 0) {
-        setRules(data);
+      const response = await axiosInstance.get(
+        `/finance-rules/paginated?page=${currentPage}&limit=10`
+      );
+      const { EC, data } = response.data;
+      if (EC === 0 && data) {
+        setRules(data.items);
+        setTotalPages(data.totalPages);
       }
     } catch (error) {
       console.error("Error fetching finance rules:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
   // Fetch finance rules từ API
   useEffect(() => {
     fetchRules();
-  }, []);
+  }, [currentPage]);
 
   // Handle mở modal edit
   const handleEdit = (rule: FinanceRule) => {
@@ -110,19 +125,33 @@ const page = () => {
           ...selectedRule,
           id: undefined,
           created_at: undefined,
+          updated_at: selectedRule?.updated_at ? +selectedRule?.updated_at : undefined,
           created_by: undefined,
           customer_care_hourly_wage: +selectedRule.customer_care_hourly_wage
         }
       );
-      const { EC, EM, data } = response.data;
+      const { EC } = response.data;
       if (EC === 0) {
-        setRules((prev) =>
-          prev.map((r) => (r.id === selectedRule.id ? selectedRule : r))
-        );
         setOpenEdit(false);
+        fetchRules();
+        toast({
+          title: "Success",
+          description: "Rule updated successfully.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update rule.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error updating rule:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -133,19 +162,33 @@ const page = () => {
       const response = await axiosInstance.post("/finance-rules", {
         app_service_fee: +newRule.app_service_fee,
         restaurant_commission: +newRule.restaurant_commission,
-        created_by_id: HARDED_CODE_DATA.SUPER_ADMIN_ID,
+        created_by_id: adminStore?.id ?? "",
         description: newRule.description,
         customer_care_hourly_wage: +newRule.customer_care_hourly_wage,
         driver_fixed_wage: newRule.driver_fixed_wage,
       });
-      const { EC, EM, data } = response.data;
+      const { EC } = response.data;
       if (EC === 0) {
-        setRules((prev) => [...prev, data]); // Thêm rule mới vào danh sách
-        fetchRules();
         setOpenAdd(false);
+        fetchRules();
+        toast({
+          title: "Success",
+          description: "Rule added successfully.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to add rule.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error adding rule:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -187,6 +230,12 @@ const page = () => {
           }
         : null
     );
+  };
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
   };
 
   // Apply latest service fee
@@ -322,6 +371,7 @@ const page = () => {
 
   return (
     <div className="container mx-auto p-4">
+      <Spinner isVisible={isLoading} isOverlay />
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Service Fee Manager</h1>
         <Button onClick={handleOpenAdd}>Add New Rule</Button>
@@ -358,6 +408,14 @@ const page = () => {
             ))}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="mt-4">
+        <SimplePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
       </div>
 
       {/* Modal chỉnh sửa rule */}
@@ -551,4 +609,4 @@ const page = () => {
   );
 };
 
-export default page;
+export default FinanceRulePage;

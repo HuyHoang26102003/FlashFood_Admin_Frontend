@@ -1,12 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import React, { useEffect, useState } from "react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { useRouter } from "next/navigation";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { driverService } from "@/services/companion-admin/driverService";
@@ -513,7 +507,7 @@ const ConditionalTabContentRender = ({
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-800 mb-1">Pro Tips</h3>
                   <p className="text-sm text-gray-600">
-                    Use the "Generate" buttons to create realistic test data.
+                    Use the &quot;Generate&quot; buttons to create realistic test data.
                     Always test in a safe environment before using in
                     production.
                   </p>
@@ -779,7 +773,6 @@ const ConditionalTabContentRender = ({
 };
 
 const Page = () => {
-  const customerCareZ = useCustomerCareStore((state) => state.user);
   const [selectedTab, setSelectedTab] = useState<Enum_Tabs>(tabs[0]);
 
   return (

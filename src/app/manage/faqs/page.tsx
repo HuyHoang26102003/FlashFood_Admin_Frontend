@@ -38,8 +38,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { HARDED_CODE_DATA } from "@/utils/harded_code_data";
 import axios from "axios";
+import { Spinner } from "@/components/Spinner";
+import { SimplePagination } from "@/components/ui/pagination";
+import { useToast } from "@/hooks/use-toast";
 
 // Định nghĩa type cho FAQ
 interface AnswerItem {
@@ -60,28 +62,38 @@ interface FAQ {
   updated_at: string | null;
 }
 
-const page = () => {
+const Page = () => {
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [selectedFAQ, setSelectedFAQ] = useState<FAQ | null>(null);
   const [newFAQ, setNewFAQ] = useState<FAQ | null>(null);
   const [openEdit, setOpenEdit] = useState<boolean>(false);
   const [openAdd, setOpenAdd] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const { toast } = useToast();
 
   const fetchFAQs = async () => {
+    setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/faqs");
-      const { EC, EM, data } = response.data;
-      if (EC === 0) {
-        setFaqs(data);
+      const response = await axiosInstance.get(
+        `/faqs/paginated?page=${currentPage}&limit=10`
+      );
+      const { EC, data } = response.data;
+      if (EC === 0 && data) {
+        setFaqs(data.items);
+        setTotalPages(data.totalPages);
       }
     } catch (error) {
       console.error("Error fetching FAQs:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchFAQs();
-  }, []);
+  }, [currentPage]);
 
   // Handle mở modal edit
   const handleEdit = (faq: FAQ) => {
@@ -115,15 +127,28 @@ const page = () => {
         status: selectedFAQ.status,
         target_user: selectedFAQ.target_user,
       });
-      const { EC, EM, data } = response.data;
+      const { EC } = response.data;
       if (EC === 0) {
-        setFaqs((prev) =>
-          prev.map((f) => (f.id === selectedFAQ.id ? selectedFAQ : f))
-        );
         setOpenEdit(false);
+        fetchFAQs();
+        toast({
+          title: "Success",
+          description: "FAQ updated successfully.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update FAQ.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error updating FAQ:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -138,14 +163,28 @@ const page = () => {
         status: newFAQ.status,
         target_user: newFAQ.target_user,
       });
-      const { EC, EM, data } = response.data;
+      const { EC } = response.data;
       if (EC === 0) {
-        setFaqs((prev) => [...prev, data]);
-        fetchFAQs();
         setOpenAdd(false);
+        fetchFAQs();
+        toast({
+          title: "Success",
+          description: "FAQ created successfully.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to create FAQ.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error adding FAQ:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -259,6 +298,12 @@ const page = () => {
             }
           : null
       );
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
     }
   };
 
@@ -451,9 +496,9 @@ const page = () => {
           {item.value && typeof item.value !== "string" && (
             <img
               src={
-                "url" in item.value
-                  ? item.value.url
-                  : (item.value as any)[0]?.url
+                Array.isArray(item.value)
+                  ? item.value[0]?.url
+                  : (item.value as { url: string }).url
               }
               alt="preview"
               className="w-12 h-12 rounded-md"
@@ -487,6 +532,7 @@ const page = () => {
 
   return (
     <div className="container mx-auto p-4">
+      <Spinner isVisible={isLoading} isOverlay />
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">FAQs Manager</h1>
         <Button onClick={handleOpenAdd}>Add New FAQ</Button>
@@ -522,6 +568,14 @@ const page = () => {
             ))}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="mt-4">
+        <SimplePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
       </div>
 
       {/* Modal chỉnh sửa FAQ */}
@@ -726,4 +780,4 @@ const page = () => {
   );
 };
 
-export default page;
+export default Page;

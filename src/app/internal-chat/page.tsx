@@ -11,7 +11,6 @@ import {
   TaggedUserDetail,
   PendingInvitation,
   OrderReference,
-  AdminChatParticipant,
 } from "@/types/admin-chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1441,6 +1440,25 @@ export default function InternalChatPage() {
                           content: msg.replyToMessageDetails.content,
                         }
                       : null;
+
+                    if (msg.senderId === "SYSTEM") {
+                      return (
+                        <div
+                          key={msg.id}
+                          className="flex justify-center items-center my-3"
+                        >
+                          <div className="text-center text-xs text-muted-foreground bg-accent rounded-full px-4 py-1.5">
+                            {renderMessageContent(
+                              msg.content,
+                              msg.taggedUsersDetails
+                            )}
+                            <span className="ml-2 text-muted-foreground/70">
+                              {formatTime(msg.timestamp)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div

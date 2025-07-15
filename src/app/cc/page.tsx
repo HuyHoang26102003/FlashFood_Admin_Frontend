@@ -23,10 +23,8 @@ import {
 } from "@tanstack/react-table";
 import {
   ArrowUpDown,
-  Eye,
   MoreHorizontal,
   Power,
-  Trash,
   Loader2,
 } from "lucide-react";
 import Image from "next/image";
@@ -60,6 +58,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { superAdminService } from "@/services/super-admin/superAdminService";
+import { toast } from "@/hooks/use-toast";
 interface CustomerCare {
   id: string;
   first_name: string;
@@ -99,54 +99,37 @@ const Page = () => {
   >([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isUnbanning, setIsUnbanning] = useState(false);
 
-  const handleStatusChange = async (id: string, shouldBan: boolean) => {
+
+  const handleStatusChange = (id: string, shouldBan: boolean) => {
+    setSelectedCCId(id);
     if (shouldBan) {
-      setSelectedCCId(id);
-      setIsBanDialogOpen(true);
-      return;
+      setIsUnbanning(false);
+    } else {
+      setIsUnbanning(true);
     }
-
-    try {
-      setIsLoading(true);
-      const response = await customerCareService.toggleCustomerCareStatus(
-        id,
-        shouldBan
-      );
-      if (response.EC === 0) {
-        setCustomerCare((prevCC) =>
-          prevCC.map((cc) =>
-            cc.id === id
-              ? { ...cc, is_banned: shouldBan, available_for_work: !shouldBan }
-              : cc
-          )
-        );
-      }
-    } catch (error) {
-      console.error("Error toggling customer care status:", error);
-    } finally {
-      setIsLoading(false);
-    }
+    setIsBanDialogOpen(true);
   };
 
-  const handleBanSubmit = async () => {
+  const handleStatusSubmit = async () => {
     if (!selectedCCId || !banReason.trim()) return;
 
     try {
       setIsBanLoading(true);
-      const response = await axiosInstance.post(
-        `admin/ban/CustomerCare/${selectedCCId}`,
-        { reason: banReason }
+      const response = await superAdminService.banAccount(
+        selectedCCId,
+        "CustomerCare",
+        banReason
       );
 
-      if (response.data.EC === 0) {
+      if (response.EC === 0) {
         setCustomerCare((prevCC) =>
           prevCC.map((cc) =>
             cc.id === selectedCCId
               ? {
                   ...cc,
-                  is_banned: true,
-                  available_for_work: false,
+                  is_banned: !isUnbanning,
                 }
               : cc
           )
@@ -154,9 +137,31 @@ const Page = () => {
         setIsBanDialogOpen(false);
         setBanReason("");
         setSelectedCCId(null);
+        toast({
+          title: "Success",
+          description: `Customer Care Representative has been successfully ${
+            isUnbanning ? "unbanned" : "banned"
+          }.`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description:
+            response.EM ||
+            `Failed to ${isUnbanning ? "unban" : "ban"} customer care representative.`,
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      console.error("Error banning customer care:", error);
+      console.error(
+        `Error ${isUnbanning ? "unbanning" : "banning"} customer care representative:`,
+        error
+      );
+      toast({
+        title: "Error",
+        description: `An unexpected error occurred.`,
+        variant: "destructive",
+      });
     } finally {
       setIsBanLoading(false);
     }
@@ -353,7 +358,7 @@ const Page = () => {
             </PopoverTrigger>
             <PopoverContent className="w-32">
               <div className="grid gap-4">
-                <Button
+                {/* <Button
                   variant="ghost"
                   className="flex items-center justify-start"
                   onClick={() => {
@@ -362,22 +367,18 @@ const Page = () => {
                 >
                   <Eye className="mr-2 h-4 w-4" />
                   Details
-                </Button>
+                </Button> */}
                 <Button
                   variant="ghost"
                   className="flex items-center justify-start"
-                  onClick={() => handleStatusChange(cc.id, !cc.is_banned)}
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                    e.stopPropagation();
+                    handleStatusChange(cc.id, !cc.is_banned)}}
                 >
                   <Power className="mr-2 h-4 w-4" />
                   {cc.is_banned ? "Unban" : "Ban"}
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="flex items-center justify-start text-destructive"
-                >
-                  <Trash className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
+              
               </div>
             </PopoverContent>
           </Popover>
@@ -720,7 +721,7 @@ const Page = () => {
               Cancel
             </Button>
             <Button
-              onClick={handleBanSubmit}
+              onClick={handleStatusSubmit}
               disabled={!banReason.trim() || isBanLoading}
             >
               {isBanLoading ? (

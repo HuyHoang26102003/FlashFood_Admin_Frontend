@@ -58,11 +58,14 @@ import {
 import { formatEpochToExactTime } from "@/utils/functions/formatTime";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import axiosInstance from "@/lib/axios";
 import { Loader2 } from "lucide-react";
 import { userSearchService } from "@/services/user/userSearchService";
+import { superAdminService } from "@/services/super-admin/superAdminService";
+import { useToast } from "@/hooks/use-toast";
+import { UserSearchResult } from "@/types/user-profile";
 
 export default function DriversPage() {
+  const { toast } = useToast();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [driverOrders, setDriverOrders] = useState<DriverOrder[]>([]);
@@ -78,12 +81,15 @@ export default function DriversPage() {
   });
   const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState("");
-  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(
+    null
+  );
   const [isBanLoading, setIsBanLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [driversSearchResult, setDriversSearchResult] = useState<Driver[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isUnbanning, setIsUnbanning] = useState(false);
 
   useEffect(() => {
     const totalCount = drivers.length;
@@ -165,7 +171,7 @@ export default function DriversPage() {
     setSelectedDriver(driver);
     try {
       const orders = await driverService.getDriverOrders(driver.id);
-      setDriverOrders(orders.data.data ?? orders.data);
+      setDriverOrders(orders.data.orders);
       setIsOrderDialogOpen(true);
     } catch (error) {
       console.error("Error fetching driver orders:", error);
@@ -173,45 +179,36 @@ export default function DriversPage() {
   };
 
   const handleStatusChange = async (driverId: string, shouldBan: boolean) => {
+    setSelectedDriverId(driverId);
     if (shouldBan) {
-      setSelectedDriverId(driverId);
+      setIsUnbanning(false);
       setIsBanDialogOpen(true);
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      await driverService.updateDriverStatus(driverId, shouldBan);
-      setDrivers((prevDrivers) =>
-        prevDrivers.map((driver) =>
-          driver.id === driverId ? { ...driver, is_banned: shouldBan } : driver
-        )
-      );
-    } catch (error) {
-      console.error("Error updating driver status:", error);
-    } finally {
-      setIsLoading(false);
+    } else {
+      setIsUnbanning(true);
+      setIsBanDialogOpen(true);
     }
   };
 
-  const handleBanSubmit = async () => {
+  const handleStatusSubmit = async () => {
     if (!selectedDriverId || !banReason.trim()) return;
 
     try {
       setIsBanLoading(true);
-      const response = await axiosInstance.post(
-        `admin/ban/Driver/${selectedDriverId}`,
-        { reason: banReason }
+      const response = await superAdminService.banAccount(
+        selectedDriverId,
+        "Driver",
+        banReason,
+        isUnbanning
       );
 
-      if (response.data.EC === 0) {
+      if (response.EC === 0) {
         setDrivers((prevDrivers) =>
           prevDrivers.map((driver) =>
             driver.id === selectedDriverId
               ? {
                   ...driver,
-                  is_banned: true,
-                  available_for_work: false,
+                  is_banned: !isUnbanning,
+                  available_for_work: isUnbanning,
                 }
               : driver
           )
@@ -219,9 +216,31 @@ export default function DriversPage() {
         setIsBanDialogOpen(false);
         setBanReason("");
         setSelectedDriverId(null);
+        toast({
+          title: "Success",
+          description: `Driver has been successfully ${
+            isUnbanning ? "unbanned" : "banned"
+          }.`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description:
+            response.EM ||
+            `Failed to ${isUnbanning ? "unban" : "ban"} driver.`,
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      console.error("Error banning driver:", error);
+      console.error(
+        `Error ${isUnbanning ? "unbanning" : "banning"} driver:`,
+        error
+      );
+      toast({
+        title: "Error",
+        description: `An unexpected error occurred.`,
+        variant: "destructive",
+      });
     } finally {
       setIsBanLoading(false);
     }
@@ -399,20 +418,15 @@ export default function DriversPage() {
                 <Button
                   variant="ghost"
                   className="flex items-center justify-start"
-                  onClick={() =>
-                    handleStatusChange(driver.id, !driver.is_banned)
-                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStatusChange(driver.id, !driver.is_banned);
+                  }}
                 >
                   <Power className="mr-2 h-4 w-4" />
                   {driver.is_banned ? "Unban" : "Ban"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="flex items-center justify-start text-destructive"
-                >
-                  <Trash className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
+                </Button>              
+                
               </div>
             </PopoverContent>
           </Popover>
@@ -438,7 +452,7 @@ export default function DriversPage() {
         if (response.EC === 0) {
           // Convert UserSearchResult to Driver type
           const convertedResults: Driver[] = response.data.results.map(
-            (user) => ({
+            (user: UserSearchResult) => ({
               id: user.id,
               first_name: user.first_name || "",
               last_name: user.last_name || "",
@@ -450,6 +464,9 @@ export default function DriversPage() {
                 average_rating: 0,
                 review_count: 0,
               },
+              active_points: 0,
+              vehicle: null,
+              address: null,
             })
           );
           setDriversSearchResult(convertedResults);
@@ -503,7 +520,7 @@ export default function DriversPage() {
           <BreadcrumbSeparator className="text-primary-600 max-md:text-xs font-bold" />
           <BreadcrumbItem>
             <BreadcrumbPage className="text-primary-600 max-md:text-xs font-bold">
-              Restaurant Owner
+              Drivers
             </BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
@@ -620,7 +637,7 @@ export default function DriversPage() {
                 );
                 const totalAmount = order.order_items.reduce(
                   (sum, item) =>
-                    sum + item.price_at_time_of_order * item.quantity,
+                    sum + +item.price_at_time_of_order * item.quantity,
                   0
                 );
 
@@ -752,8 +769,12 @@ export default function DriversPage() {
                                     </p>
                                     <p className="text-sm text-muted-foreground">
                                       Price: $
-                                      {item.price_at_time_of_order.toFixed(2)} x{" "}
-                                      {item.quantity}
+                                      {item.price_at_time_of_order
+                                        ? Number(
+                                            item.price_at_time_of_order
+                                          ).toFixed(2)
+                                        : "0.00"}{" "}
+                                      x {item.quantity}
                                     </p>
                                   </div>
                                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
@@ -823,18 +844,27 @@ export default function DriversPage() {
       <Dialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
         <DialogContent className="w-96">
           <DialogHeader>
-            <DialogTitle>Ban Driver</DialogTitle>
+            <DialogTitle>
+              {isUnbanning ? "Unban Driver" : "Ban Driver"}
+            </DialogTitle>
             <DialogDescription>
-              Please provide a reason for banning this driver. This will be
-              recorded for administrative purposes.
+              {isUnbanning
+                ? "Please provide a reason for unbanning this driver."
+                : "Please provide a reason for banning this driver. This will be recorded for administrative purposes."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="reason">Ban Reason</Label>
+              <Label htmlFor="reason">
+                {isUnbanning ? "Unban Reason" : "Ban Reason"}
+              </Label>
               <Input
                 id="reason"
-                placeholder="Enter the reason for banning..."
+                placeholder={
+                  isUnbanning
+                    ? "Enter the reason for unbanning..."
+                    : "Enter the reason for banning..."
+                }
                 value={banReason}
                 onChange={(e) => setBanReason(e.target.value)}
               />
@@ -852,14 +882,16 @@ export default function DriversPage() {
               Cancel
             </Button>
             <Button
-              onClick={handleBanSubmit}
+              onClick={handleStatusSubmit}
               disabled={!banReason.trim() || isBanLoading}
             >
               {isBanLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Banning...
+                  {isUnbanning ? "Unbanning..." : "Banning..."}
                 </>
+              ) : isUnbanning ? (
+                "Unban Driver"
               ) : (
                 "Ban Driver"
               )}

@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import axios from "axios";
+import axiosInstance from "@/lib/axios";
 import { Spinner } from "@/components/Spinner";
 import FallbackImage from "@/components/FallbackImage";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,22 +47,21 @@ import IdCell from "@/components/IdCell";
 import { useRouter } from "next/navigation";
 import { useAdminStore } from "@/stores/adminStore";
 import { useCustomerCareStore } from "@/stores/customerCareStore";
+import { SimplePagination } from "@/components/ui/pagination";
+import { useToast } from "@/hooks/use-toast";
 
 export type Promotion = {
   id: string;
   name: string;
-  promotion_cost_price?: number;
   description: string;
-  cost: number; // promotion_cost_price
-  startDate: number; // epoch timestamp
-  endDate: number; // epoch timestamp
-  start_date?: number; // epoch timestamp
-  end_date?: number; // epoch timestamp
+  promotion_cost_price: number;
+  start_date: number; // epoch timestamp
+  end_date: number; // epoch timestamp
   discount_type: "PERCENTAGE" | "FIXED";
   discount_value: number;
   minimum_order_value: number;
   status: "ACTIVE" | "INACTIVE";
-  food_categories: string[];
+  food_category_ids: string[];
   avatar?: { url: string; key: string };
 };
 
@@ -102,21 +101,20 @@ interface PromotionDetails {
   }[];
 }
 
-const data: Promotion[] = [
-  {
-    id: "m5gr84i9",
-    name: "Summer Special",
-    description: "Summer discounts",
-    cost: 299.99,
-    startDate: new Date("2024-06-01").getTime() / 1000,
-    endDate: new Date("2024-08-31").getTime() / 1000,
-    discount_type: "PERCENTAGE",
-    discount_value: 20,
-    minimum_order_value: 500,
-    status: "ACTIVE",
-    food_categories: ["FF_FC_9aaf160a-d64d-48e5-bcdb-3ccc3329204d"],
-  },
-];
+interface RawPromotion {
+  id: string;
+  name: string;
+  description: string;
+  promotion_cost_price: number;
+  start_date: number;
+  end_date: number;
+  discount_type: "PERCENTAGE" | "FIXED";
+  discount_value: number;
+  minimum_order_value: number;
+  status: "ACTIVE" | "INACTIVE";
+  food_category_ids: string[];
+  avatar?: { url: string; key: string };
+}
 
 const Page = () => {
   const [listPromotions, setListPromotions] = useState<Promotion[]>([]);
@@ -130,6 +128,10 @@ const Page = () => {
   const [selectedPromotionDetails, setSelectedPromotionDetails] =
     useState<PromotionDetails | null>(null);
   const [isDetailsLoading, setIsDetailsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const { toast } = useToast();
 
   // Handle fetch promotion details
   const handleViewDetails = async (promotionId: string) => {
@@ -185,7 +187,7 @@ const Page = () => {
       ),
     },
     {
-      accessorKey: "cost",
+      accessorKey: "promotion_cost_price",
       header: ({ column }) => (
         <Button
           variant="ghost"
@@ -196,7 +198,7 @@ const Page = () => {
         </Button>
       ),
       cell: ({ row }) => {
-        const amount = parseFloat(row.getValue("cost"));
+        const amount = parseFloat(row.getValue("promotion_cost_price"));
         const formatted = new Intl.NumberFormat("en-US", {
           style: "currency",
           currency: "USD",
@@ -205,7 +207,7 @@ const Page = () => {
       },
     },
     {
-      accessorKey: "startDate",
+      accessorKey: "start_date",
       header: ({ column }) => (
         <Button
           variant="ghost"
@@ -216,7 +218,7 @@ const Page = () => {
         </Button>
       ),
       cell: ({ row }) => {
-        const timestamp = row.getValue("startDate") as number;
+        const timestamp = row.getValue("start_date") as number;
         const date = new Date(timestamp * 1000);
         return (
           <div className="text-center">{date.toLocaleDateString("en-GB")}</div>
@@ -224,7 +226,7 @@ const Page = () => {
       },
     },
     {
-      accessorKey: "endDate",
+      accessorKey: "end_date",
       header: ({ column }) => (
         <Button
           variant="ghost"
@@ -235,10 +237,37 @@ const Page = () => {
         </Button>
       ),
       cell: ({ row }) => {
-        const timestamp = row.getValue("endDate") as number;
+        const timestamp = row.getValue("end_date") as number;
         const date = new Date(timestamp * 1000);
         return (
           <div className="text-center">{date.toLocaleDateString("en-GB")}</div>
+        );
+      },
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Status
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const status = row.getValue("status");
+        const formatted = status === "ACTIVE" ? "Active" : "Inactive";
+        return (
+          <div
+            className={`font-medium text-center rounded-md px-2 py-1 ${
+              status === "ACTIVE"
+                ? "bg-primary-100 text-green-500"
+                : "bg-danger-100 text-red-500"
+            }`}
+          >
+            {formatted}
+          </div>
         );
       },
     },
@@ -269,24 +298,10 @@ const Page = () => {
                 <Button
                   variant="ghost"
                   className="flex items-center justify-start"
+                  onClick={() => handleToggleStatus(promotion.id)}
                 >
                   <Power className="mr-2 h-4 w-4" />
-                  Inactivate
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="flex items-center justify-start"
-                  onClick={() => handleEdit(promotion)}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="flex items-center justify-start text-destructive"
-                >
-                  <Trash className="mr-2 h-4 w-4" />
-                  Delete
+                  {promotion.status === "ACTIVE" ? "Inactivate" : "Activate"}
                 </Button>
               </div>
             </PopoverContent>
@@ -302,32 +317,39 @@ const Page = () => {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  useEffect(() => {
-    const result = promotionsService.findAllPaginated();
-    result
-      .then((res) => {
+  const fetchPromotions = async () => {
+    setIsLoading(true);
+    try {
+      const res = await promotionsService.findAllPaginated(10, currentPage);
+      if (res.EC === 0) {
         setListPromotions(
-          res.data.items.map((item: any) => ({
+          res.data.items.map((item: RawPromotion) => ({
             id: item.id,
             name: item.name,
             description: item.description,
-            cost: item.promotion_cost_price,
-            startDate: item.start_date,
-            endDate: item.end_date,
+            promotion_cost_price: item.promotion_cost_price,
+            start_date: item.start_date,
+            end_date: item.end_date,
             discount_type: item.discount_type,
             discount_value: item.discount_value,
             minimum_order_value: item.minimum_order_value,
             status: item.status,
-            food_categories: item.food_categories,
+            food_category_ids: item.food_category_ids || [],
             avatar: item.avatar,
           }))
         );
-      })
-      .catch((err) => {
-        console.log("check er", err);
-        setListPromotions(data);
-      });
-  }, []);
+        setTotalPages(res.data.totalPages);
+      }
+    } catch (err) {
+      console.log("check er", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPromotions();
+  }, [currentPage]);
 
   // Handle mở modal edit
   const handleEdit = (promotion: Promotion) => {
@@ -341,14 +363,14 @@ const Page = () => {
       id: "",
       name: "",
       description: "",
-      cost: 0,
-      startDate: Math.floor(Date.now() / 1000),
-      endDate: Math.floor(Date.now() / 1000) + 86400, // +1 day
+      promotion_cost_price: 0,
+      start_date: Math.floor(Date.now() / 1000),
+      end_date: Math.floor(Date.now() / 1000) + 86400, // +1 day
       discount_type: "PERCENTAGE",
       discount_value: 0,
       minimum_order_value: 0,
       status: "ACTIVE",
-      food_categories: [],
+      food_category_ids: [],
     });
     setOpenAdd(true);
   };
@@ -373,25 +395,31 @@ const Page = () => {
   const handleSaveEdit = async () => {
     if (!selectedPromotion) return;
     try {
-      await promotionsService.updatePromotion(selectedPromotion.id, {
-        name: selectedPromotion.name,
-        description: selectedPromotion.description,
-        start_date: selectedPromotion.startDate,
-        end_date: selectedPromotion.endDate,
-        discount_type: selectedPromotion.discount_type,
-        discount_value: selectedPromotion.discount_value,
-        promotion_cost_price: selectedPromotion.cost,
-        minimum_order_value: selectedPromotion.minimum_order_value,
-        status: selectedPromotion.status,
-        food_categories: selectedPromotion.food_categories,
-        avatar: selectedPromotion.avatar,
-      });
-      setListPromotions((prev) =>
-        prev.map((p) => (p.id === selectedPromotion.id ? selectedPromotion : p))
+      const response = await promotionsService.updatePromotion(
+        selectedPromotion.id,
+        selectedPromotion
       );
-      setOpenEdit(false);
+      if (response.EC === 0) {
+        setOpenEdit(false);
+        fetchPromotions();
+        toast({
+          title: "Success",
+          description: "Promotion updated successfully.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update promotion.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Error updating promotion:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -399,60 +427,106 @@ const Page = () => {
   const handleSaveAdd = async () => {
     if (!newPromotion) return;
     try {
-      const response = await promotionsService.createPromotion({
-        name: newPromotion.name,
-        description: newPromotion.description,
-        start_date: newPromotion.startDate,
-        end_date: newPromotion.endDate,
-        discount_type: newPromotion.discount_type,
-        discount_value: newPromotion.discount_value,
-        promotion_cost_price: newPromotion.cost,
-        minimum_order_value: newPromotion.minimum_order_value,
-        status: newPromotion.status,
-        food_categories: newPromotion.food_categories,
-        avatar: newPromotion.avatar,
-        cost: newPromotion.cost,
-        endDate: newPromotion.end_date || newPromotion.endDate,
-        startDate: newPromotion.start_date || newPromotion.startDate,
-      });
-      setListPromotions((prev) => [...prev, response.data]);
-      setOpenAdd(false);
+      const response = await promotionsService.createPromotion(newPromotion);
+      if (response.EC === 0) {
+        setOpenAdd(false);
+        fetchPromotions();
+        toast({
+          title: "Success",
+          description: "Promotion created successfully.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to create promotion.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Error adding promotion:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleStatus = async (promotionId: string) => {
+    setIsLoading(true);
+    try {
+      const response = await axiosInstance.patch(
+        `/promotions/${promotionId}/toggle-status`
+      );
+      if (response.data.EC === 0) {
+        toast({
+          title: "Success",
+          description: `Promotion status has been successfully updated.`,
+        });
+        fetchPromotions();
+      } else {
+        toast({
+          title: "Error",
+          description:
+            response.data.EM || "Failed to update promotion status.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling promotion status:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Handle upload avatar lên Cloudinary
   const handleImageUpload = async (isEdit: boolean, files: FileList) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
     const formData = new FormData();
-    Array.from(files).forEach((file) => formData.append("file", file));
-    formData.append(
-      "upload_preset",
-      `${process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET}`
-    );
+    formData.append("file", file);
 
     try {
-      const response = await axios.post(
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-        formData
-      );
-      const { public_id, secure_url } = response.data;
-      const uploadedImage = { key: public_id, url: secure_url };
+      const response = await axiosInstance.post("/upload/image", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
-      if (isEdit) {
-        setSelectedPromotion((prev) =>
-          prev ? { ...prev, avatar: uploadedImage } : null
-        );
+      const uploadResponse = response.data;
+      if (
+        uploadResponse.EC === 0 &&
+        uploadResponse.data?.url &&
+        uploadResponse.data?.public_id
+      ) {
+        const uploadedImage = {
+          key: uploadResponse.data.public_id,
+          url: uploadResponse.data.url,
+        };
+
+        if (isEdit) {
+          setSelectedPromotion((prev) =>
+            prev ? { ...prev, avatar: uploadedImage } : null
+          );
+        } else {
+          setNewPromotion((prev) =>
+            prev ? { ...prev, avatar: uploadedImage } : null
+          );
+        }
       } else {
-        setNewPromotion((prev) =>
-          prev ? { ...prev, avatar: uploadedImage } : null
-        );
+        console.error("Image upload failed:", uploadResponse.EM);
       }
     } catch (error) {
       console.error("Error uploading image:", error);
     }
   };
 
+  console.log("check newPromotion", newPromotion?.avatar);
   const router = useRouter();
 
   const adminStore = useAdminStore.getState();
@@ -469,8 +543,15 @@ const Page = () => {
     }
   }, [currentLoggedInUser]);
 
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
   return (
-    <div>
+    <div className="mt-4">
+      <Spinner isVisible={isLoading} isOverlay />
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Promotions Manager</h1>
         <Button onClick={handleOpenAdd}>
@@ -514,6 +595,13 @@ const Page = () => {
           </Table>
         </div>
       </div>
+      <div className="mt-4">
+        <SimplePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
+      </div>
 
       {/* Modal chỉnh sửa Promotion */}
       {selectedPromotion && (
@@ -554,9 +642,12 @@ const Page = () => {
                 <Input
                   id="cost"
                   type="number"
-                  value={selectedPromotion.cost}
+                  value={selectedPromotion.promotion_cost_price}
                   onChange={(e) =>
-                    handleChangeEdit("cost", parseFloat(e.target.value))
+                    handleChangeEdit(
+                      "promotion_cost_price",
+                      parseFloat(e.target.value)
+                    )
                   }
                   className="col-span-3"
                 />
@@ -569,13 +660,13 @@ const Page = () => {
                   id="startDate"
                   type="date"
                   value={
-                    new Date(selectedPromotion.startDate * 1000)
+                    new Date(selectedPromotion.start_date * 1000)
                       .toISOString()
                       .split("T")[0]
                   }
                   onChange={(e) =>
                     handleChangeEdit(
-                      "startDate",
+                      "start_date",
                       Math.floor(new Date(e.target.value).getTime() / 1000)
                     )
                   }
@@ -590,13 +681,13 @@ const Page = () => {
                   id="endDate"
                   type="date"
                   value={
-                    new Date(selectedPromotion.endDate * 1000)
+                    new Date(selectedPromotion.end_date * 1000)
                       .toISOString()
                       .split("T")[0]
                   }
                   onChange={(e) =>
                     handleChangeEdit(
-                      "endDate",
+                      "end_date",
                       Math.floor(new Date(e.target.value).getTime() / 1000)
                     )
                   }
@@ -679,10 +770,10 @@ const Page = () => {
                 </Label>
                 <Input
                   id="food_categories"
-                  value={selectedPromotion.food_categories.join(", ")}
+                  value={selectedPromotion.food_category_ids?.join(", ") || ""}
                   onChange={(e) =>
                     handleChangeEdit(
-                      "food_categories",
+                      "food_category_ids",
                       e.target.value.split(", ")
                     )
                   }
@@ -705,7 +796,7 @@ const Page = () => {
                     <FallbackImage
                       height={32}
                       width={32}
-                      src={selectedPromotion.avatar.url}
+                      src={newPromotion?.avatar?.url ??selectedPromotion.avatar.url}
                       alt="preview"
                       className="w-12 h-12 rounded-md"
                     />
@@ -765,9 +856,12 @@ const Page = () => {
                 <Input
                   id="cost"
                   type="number"
-                  value={newPromotion.cost}
+                  value={newPromotion.promotion_cost_price}
                   onChange={(e) =>
-                    handleChangeAdd("cost", parseFloat(e.target.value))
+                    handleChangeAdd(
+                      "promotion_cost_price",
+                      parseFloat(e.target.value)
+                    )
                   }
                   className="col-span-3"
                 />
@@ -780,13 +874,13 @@ const Page = () => {
                   id="startDate"
                   type="date"
                   value={
-                    new Date(newPromotion.startDate * 1000)
+                    new Date(newPromotion.start_date * 1000)
                       .toISOString()
                       .split("T")[0]
                   }
                   onChange={(e) =>
                     handleChangeAdd(
-                      "startDate",
+                      "start_date",
                       Math.floor(new Date(e.target.value).getTime() / 1000)
                     )
                   }
@@ -801,13 +895,13 @@ const Page = () => {
                   id="endDate"
                   type="date"
                   value={
-                    new Date(newPromotion.endDate * 1000)
+                    new Date(newPromotion.end_date * 1000)
                       .toISOString()
                       .split("T")[0]
                   }
                   onChange={(e) =>
                     handleChangeAdd(
-                      "endDate",
+                      "end_date",
                       Math.floor(new Date(e.target.value).getTime() / 1000)
                     )
                   }
@@ -890,10 +984,10 @@ const Page = () => {
                 </Label>
                 <Input
                   id="food_categories"
-                  value={newPromotion.food_categories.join(", ")}
+                  value={newPromotion.food_category_ids?.join(", ") || ""}
                   onChange={(e) =>
                     handleChangeAdd(
-                      "food_categories",
+                      "food_category_ids",
                       e.target.value.split(", ")
                     )
                   }
@@ -916,7 +1010,7 @@ const Page = () => {
                     <FallbackImage
                       height={32}
                       width={32}
-                      src={selectedPromotion?.avatar?.url}
+                      src={newPromotion?.avatar?.url ?? selectedPromotion?.avatar?.url}
                       alt="preview"
                       className="w-12 h-12 rounded-md"
                     />
@@ -946,6 +1040,7 @@ const Page = () => {
           <Spinner isVisible={isDetailsLoading} isOverlay />
           {selectedPromotionDetails && (
             <>
+            <FallbackImage src={selectedPromotionDetails?.avatar?.url ?? ""} alt="avatar" width={100} className="w-full h-48 rounded-md" height={100} />
               <div className="grid grid-cols-2 gap-4 py-4">
                 <div className="">
                   <Label className="text-right font-semibold">Name</Label>

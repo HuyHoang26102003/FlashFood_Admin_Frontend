@@ -26,6 +26,13 @@ export const superAdminService = {
     );
     return response.data;
   },
+  banAccount: async (id: string, user_type: 'Customer' | 'CustomerCare' | 'Driver' | 'Restaurant', reason: string) => {
+    const response = await axiosInstance.post(
+      `${API_ENDPOINTS.ADMIN}/toggle-ban/${user_type}/${id}`,
+      { reason }
+    );
+    return response.data;
+  },
 
   //   createPromotion: async (promotion: Omit<Promotion, "id">) => {
   //     const response = await axiosInstance.post(

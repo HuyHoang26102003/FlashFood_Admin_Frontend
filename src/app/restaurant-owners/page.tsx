@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useRef } from "react";
-import { Eye, Power, Trash, Loader2 } from "lucide-react";
+import { Eye, Power, Loader2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -45,7 +45,6 @@ import FallbackImage from "@/components/FallbackImage";
 import { SimplePagination } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import axiosInstance from "@/lib/axios";
 import { userSearchService } from "@/services/user/userSearchService";
 import {
   Breadcrumb,
@@ -55,11 +54,14 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { superAdminService } from "@/services/super-admin/superAdminService";
+import { useToast } from "@/hooks/use-toast";
+import { UserSearchResult } from "@/services/user/userSearchService";
 interface RestaurantData {
   id: string;
   restaurant_name: string;
   owner_id: string;
-  owner_name: string;
+  owner_name?: string;
   description: string | null;
   contact_email: {
     email: string;
@@ -123,6 +125,7 @@ interface MenuItem {
 }
 
 const Page = () => {
+  const { toast } = useToast();
   const [restaurants, setRestaurants] = useState<RestaurantData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState({
@@ -150,63 +153,39 @@ const Page = () => {
   >([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isUnbanning, setIsUnbanning] = useState(false);
 
-  const handleStatusChange = async (id: string, shouldBan: boolean) => {
+  const handleStatusChange = (id: string, shouldBan: boolean) => {
+    setSelectedRestaurantId(id);
     if (shouldBan) {
-      setSelectedRestaurantId(id);
-      setIsBanDialogOpen(true);
-      return;
+      setIsUnbanning(false);
+    } else {
+      setIsUnbanning(true);
     }
-
-    try {
-      setIsLoading(true);
-      const response = await restaurantService.toggleRestaurantStatus(
-        id,
-        shouldBan
-      );
-      if (response.EC === 0) {
-        setRestaurants((prevRestaurants) =>
-          prevRestaurants.map((restaurant) =>
-            restaurant.id === id
-              ? {
-                  ...restaurant,
-                  is_banned: shouldBan,
-                  status: {
-                    ...restaurant.status,
-                    is_active: !shouldBan,
-                  },
-                }
-              : restaurant
-          )
-        );
-      }
-    } catch (error) {
-      console.error("Error toggling restaurant status:", error);
-    } finally {
-      setIsLoading(false);
-    }
+    setIsBanDialogOpen(true);
   };
 
-  const handleBanSubmit = async () => {
+  const handleStatusSubmit = async () => {
     if (!selectedRestaurantId || !banReason.trim()) return;
 
     try {
       setIsBanLoading(true);
-      const response = await axiosInstance.post(
-        `admin/ban/Restaurant/${selectedRestaurantId}`,
-        { reason: banReason }
+      const response = await superAdminService.banAccount(
+        selectedRestaurantId,
+        "Restaurant",
+        banReason
       );
 
-      if (response.data.EC === 0) {
+      if (response.EC === 0) {
         setRestaurants((prevRestaurants) =>
           prevRestaurants.map((restaurant) =>
             restaurant.id === selectedRestaurantId
               ? {
                   ...restaurant,
-                  is_banned: true,
+                  is_banned: !isUnbanning,
                   status: {
                     ...restaurant.status,
-                    is_active: false,
+                    is_active: isUnbanning,
                   },
                 }
               : restaurant
@@ -215,23 +194,61 @@ const Page = () => {
         setIsBanDialogOpen(false);
         setBanReason("");
         setSelectedRestaurantId(null);
+        toast({
+          title: "Success",
+          description: `Restaurant has been successfully ${
+            isUnbanning ? "unbanned" : "banned"
+          }.`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description:
+            response.EM ||
+            `Failed to ${isUnbanning ? "unban" : "ban"} restaurant.`,
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      console.error("Error banning restaurant:", error);
+      console.error(
+        `Error ${isUnbanning ? "unbanning" : "banning"} restaurant:`,
+        error
+      );
+      toast({
+        title: "Error",
+        description: `An unexpected error occurred.`,
+        variant: "destructive",
+      });
     } finally {
       setIsBanLoading(false);
     }
   };
 
-  const handleDeleteRestaurant = async (id: string) => {
-    try {
-      const response = await restaurantService.deleteRestaurant(id);
-      if (response.EC === 0) {
-        fetchRestaurants();
-      }
-    } catch (error) {
-      console.error("Error deleting restaurant:", error);
-    }
+  const fetchRestaurants = async () => {
+    const result = restaurantService.findAllPaginated(10, currentPage);
+    result
+      .then((res) => {
+        const {
+          totalItems: items,
+          totalPages: pages,
+          items: restaurantItems,
+        } = res.data;
+        if (res.EC === 0) {
+          setRestaurants(restaurantItems);
+          setTotalItems(items);
+          setTotalPages(pages);
+        } else {
+          console.error("API error:", res.EM);
+          setRestaurants([]);
+        }
+      })
+      .catch((err) => {
+        console.log("check err", err);
+        setRestaurants([]);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   const columns: ColumnDef<RestaurantData>[] = [
@@ -428,20 +445,13 @@ const Page = () => {
                 <Button
                   variant="ghost"
                   className="flex items-center justify-start"
-                  onClick={() =>
-                    handleStatusChange(restaurant.id, !restaurant.is_banned)
-                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStatusChange(restaurant.id, !restaurant.is_banned);
+                  }}
                 >
                   <Power className="mr-2 h-4 w-4" />
                   {restaurant.is_banned ? "Unban" : "Ban"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="flex items-center justify-start text-destructive"
-                  onClick={() => handleDeleteRestaurant(restaurant.id)}
-                >
-                  <Trash className="mr-2 h-4 w-4" />
-                  Delete
                 </Button>
               </div>
             </PopoverContent>
@@ -450,83 +460,6 @@ const Page = () => {
       },
     },
   ];
-
-  useEffect(() => {
-    setIsLoading(true);
-    const fetchDrivers = async () => {
-      try {
-        console.log("Fetching page:", currentPage);
-        const response = await restaurantService.findAllPaginated(
-          10,
-          currentPage
-        );
-        const {
-          totalItems: items,
-          totalPages: pages,
-          items: restaurantItems,
-        } = response.data;
-        if (response.EC === 0) {
-          setRestaurants(restaurantItems);
-          setTotalItems(items);
-          setTotalPages(pages);
-        } else {
-          console.error("API error:", response.EM);
-          setRestaurants([]);
-        }
-      } catch (error) {
-        console.error("Error fetching drivers:", error);
-        setRestaurants([]);
-      }
-      setIsLoading(false);
-    };
-
-    fetchDrivers();
-
-    // Set up 30-second polling for live updates
-    const pollInterval = setInterval(() => {
-      console.log("🔄 Polling restaurants data...");
-      fetchRestaurantsForPolling();
-    }, 30000); // 30 seconds
-
-    // Cleanup interval on unmount
-    return () => {
-      clearInterval(pollInterval);
-    };
-  }, [currentPage]);
-
-  const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      console.log("Changing to page:", page);
-      setCurrentPage(page);
-    }
-  };
-
-  const fetchRestaurants = async () => {
-    const result = restaurantService.findAllPaginated(10, currentPage);
-    result
-      .then((res) => {
-        const {
-          totalItems: items,
-          totalPages: pages,
-          items: restaurantItems,
-        } = res.data;
-        if (res.EC === 0) {
-          setRestaurants(restaurantItems);
-          setTotalItems(items);
-          setTotalPages(pages);
-        } else {
-          console.error("API error:", res.EM);
-          setRestaurants([]);
-        }
-      })
-      .catch((err) => {
-        console.log("check err", err);
-        setRestaurants([]);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  };
 
   const fetchRestaurantsForPolling = async () => {
     try {
@@ -554,7 +487,30 @@ const Page = () => {
   };
 
   useEffect(() => {
-    const totalCount = restaurants.length;
+    setIsLoading(true);
+    fetchRestaurants();
+
+    // Set up 30-second polling for live updates
+    const pollInterval = setInterval(() => {
+      console.log("🔄 Polling restaurants data...");
+      fetchRestaurantsForPolling();
+    }, 30000); // 30 seconds
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [currentPage]);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      console.log("Changing to page:", page);
+      setCurrentPage(page);
+    }
+  };
+
+  useEffect(() => {
+    const totalCount = totalItems;
     const activeCount = restaurants.filter(
       (r) => r.status.is_active && !r.is_banned
     ).length;
@@ -565,16 +521,7 @@ const Page = () => {
       active: activeCount,
       ban: bannedCount,
     });
-  }, [restaurants]);
-
-  // const handleGenerateRestaurant = async () => {
-  //   setIsLoading(true);
-  //   const result = await restaurantService.createRestaurant();
-  //   setIsLoading(false);
-  //   if (result.EC === 0) {
-  //     fetchRestaurants();
-  //   }
-  // };
+  }, [restaurants, totalItems]);
 
   const fetchMenuItems = async (restaurantId: string) => {
     setIsMenuItemsLoading(true);
@@ -615,11 +562,13 @@ const Page = () => {
         if (response.EC === 0) {
           // Convert UserSearchResult to RestaurantData type
           const convertedResults: RestaurantData[] = response.data.results.map(
-            (user) => ({
+            (user: UserSearchResult) => ({
               id: user.id,
               restaurant_name: user.restaurant_name || "",
               owner_id: "",
-              owner_name: `${user.first_name || ""} ${user.last_name || ""}`,
+              owner_name: user?.first_name
+                ? `${user.first_name || ""} ${user.last_name || ""}`
+                : user?.owner_name,
               description: null,
               contact_email: [
                 {
@@ -728,9 +677,6 @@ const Page = () => {
               </div>
             )}
           </div>
-          {/* <Button onClick={handleGenerateRestaurant}>
-            Generate Restaurant
-          </Button> */}
         </div>
         <div className="rounded-md border">
           <Table>
@@ -947,18 +893,27 @@ const Page = () => {
       <Dialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
         <DialogContent className="w-96">
           <DialogHeader>
-            <DialogTitle>Ban Restaurant</DialogTitle>
+            <DialogTitle>
+              {isUnbanning ? "Unban Restaurant" : "Ban Restaurant"}
+            </DialogTitle>
             <DialogDescription>
-              Please provide a reason for banning this restaurant. This will be
-              recorded for administrative purposes.
+              {isUnbanning
+                ? "Please provide a reason for unbanning this restaurant."
+                : "Please provide a reason for banning this restaurant. This will be recorded for administrative purposes."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="reason">Ban Reason</Label>
+              <Label htmlFor="reason">
+                {isUnbanning ? "Unban Reason" : "Ban Reason"}
+              </Label>
               <Input
                 id="reason"
-                placeholder="Enter the reason for banning..."
+                placeholder={
+                  isUnbanning
+                    ? "Enter the reason for unbanning..."
+                    : "Enter the reason for banning..."
+                }
                 value={banReason}
                 onChange={(e) => setBanReason(e.target.value)}
               />
@@ -976,14 +931,16 @@ const Page = () => {
               Cancel
             </Button>
             <Button
-              onClick={handleBanSubmit}
+              onClick={handleStatusSubmit}
               disabled={!banReason.trim() || isBanLoading}
             >
               {isBanLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Banning...
+                  {isUnbanning ? "Unbanning..." : "Banning..."}
                 </>
+              ) : isUnbanning ? (
+                "Unban Restaurant"
               ) : (
                 "Ban Restaurant"
               )}

@@ -57,20 +57,14 @@ const MainNav = () => {
             className="w-10 aspect-square rounded-xl relative cc bg-info-100 shadow-md shadow-info-300 hover-sd"
           >
             <Bell className="text-info-500" />
-            <Badge
-              className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-info-500"
-              variant="default"
-            ></Badge>
+          
           </div>
           {customerCareZ && !adminZ ? (
             <Popover>
               <PopoverTrigger asChild>
                 <div className="w-10 aspect-square rounded-xl relative cc bg-primary-100 shadow-md shadow-primary-300 hover-sd cursor-pointer">
                   <MessageCircle className="text-primary-500" />
-                  <Badge
-                    className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-primary-500"
-                    variant="default"
-                  ></Badge>
+               
                 </div>
               </PopoverTrigger>
               <PopoverContent
@@ -103,10 +97,7 @@ const MainNav = () => {
               className="w-10 aspect-square rounded-xl relative cc bg-primary-100 shadow-md shadow-primary-300 hover-sd cursor-pointer"
             >
               <MessageCircle className="text-primary-500" />
-              <Badge
-                className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-primary-500"
-                variant="default"
-              ></Badge>
+            
             </div>
           ) : (
             <div
@@ -114,10 +105,7 @@ const MainNav = () => {
               className="w-10 aspect-square rounded-xl relative cc bg-primary-100 shadow-md shadow-primary-300 hover-sd"
             >
               <MessageCircle className="text-primary-500" />
-              <Badge
-                className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-primary-500"
-                variant="default"
-              ></Badge>
+             
             </div>
           )}
           <div
@@ -125,20 +113,14 @@ const MainNav = () => {
             className="w-10 aspect-square rounded-xl relative cc bg-amber-200 shadow-md shadow-orange-300 hover-sd cursor-pointer"
           >
             <Ticket className="text-yellow-500" />
-            <Badge
-              className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-amber-200"
-              variant="default"
-            ></Badge>
+          
           </div>
           <div
             onClick={() => router.push("/settings")}
             className="w-10 aspect-square rounded-xl relative cc bg-danger-100 shadow-md shadow-danger-300 hover-sd"
           >
             <Bolt className="text-danger-500" />
-            <Badge
-              className="absolute -top-1 -right-1 border-2 border-white text-[0.5rem] px-[0.14rem] py-[0.1rem] bg-danger-500"
-              variant="default"
-            ></Badge>
+           
           </div>
         </div>
         <Separator
@@ -157,12 +139,13 @@ const MainNav = () => {
               </Avatar>
             </PopoverTrigger>
             <PopoverContent className="">
-              <Dialog open={open} onOpenChange={setOpen}>
+              <Dialog  onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button
                     onClick={() => {
                       logoutAdmin();
                       logoutCustomerCare();
+                      setOpen(true);
                       router.push("/");
                     }}
                     variant={"ghost"}

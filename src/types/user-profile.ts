@@ -46,4 +46,15 @@ export interface AdminProfile {
         email: string;
         avatar: null | Avatar;
     };
-} 
+}
+
+export type UserProfile = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  user_email: string;
+  avatar: {
+    key: string;
+    url: string;
+  };
+}; 

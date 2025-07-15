@@ -39,7 +39,6 @@ import { formatEpochToExactTime } from "@/utils/functions/formatTime";
 import IdCell from "@/components/IdCell";
 import { SimplePagination } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
-import PageTitle from "@/components/PageTitle";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -103,7 +102,7 @@ const Page = () => {
     setIsDialogLoading(true);
     try {
       const response = await orderService.findOrderById(orderId);
-      const { EC, data } = response.data;
+      const { EC, data } = response;
       if (EC === 0) {
         setSelectedOrder(data);
         setIsDialogOpen(true);
@@ -315,7 +314,7 @@ const Page = () => {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
           <h2 className="text-md font-semibold mb-2">Total Orders</h2>
           <div className="text-2xl font-bold text-blue-600">{totalItems}</div>
@@ -338,7 +337,7 @@ const Page = () => {
             {stats.cancelled}
           </div>
         </div>
-      </div> */}
+      </div>
 
       <div className="mt-8">
         <div className="justify-between flex items-center mb-4">
@@ -529,7 +528,7 @@ const Page = () => {
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold">{item.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            Price: ${item.price_at_time_of_order.toFixed(2)} x{" "}
+                            Price: ${Number(item.price_at_time_of_order).toFixed(2)} x{" "}
                             {item.quantity}
                           </p>
                         </div>

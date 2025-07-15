@@ -100,3 +100,28 @@ export interface Order {
     last_login: number | null;
   };
 }
+
+export interface Customer {
+  id: string;
+  first_name: string;
+  last_name: string;
+  contact_email: {
+    email: string;
+    title: string;
+    is_default: boolean;
+  }[];
+  contact_phone: {
+    number: string;
+    title: string;
+    is_default: boolean;
+  }[];
+  avatar: {
+    key: string;
+    url: string;
+  } | null;
+  total_orders: number;
+  total_spent: number;
+  is_banned: boolean;
+  created_at: string;
+  updated_at: string;
+}

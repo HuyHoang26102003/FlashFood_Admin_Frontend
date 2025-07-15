@@ -32,8 +32,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import axios from "axios";
 import { useAdminStore } from "@/stores/adminStore";
+import { formatEpochToDate } from "@/utils/functions/formatDate";
+import { Spinner } from "@/components/Spinner";
+import { SimplePagination } from "@/components/ui/pagination";
+import { useToast } from "@/hooks/use-toast";
 
 // Định nghĩa type cho Notification
 interface Avatar {
@@ -75,7 +78,7 @@ interface BroadcastNotification {
   };
 }
 
-const page = () => {
+const Page = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selectedNotification, setSelectedNotification] =
     useState<Notification | null>(null);
@@ -84,22 +87,32 @@ const page = () => {
   const [openEdit, setOpenEdit] = useState<boolean>(false);
   const [openAdd, setOpenAdd] = useState<boolean>(false);
   const adminZ = useAdminStore((state) => state.user);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const { toast } = useToast();
 
   const fetchNotifications = async () => {
+    setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/notifications");
-      const { EC, EM, data } = response.data;
-      if (EC === 0) {
-        setNotifications(data);
+      const response = await axiosInstance.get(
+        `/notifications/paginated?page=${currentPage}&limit=10`
+      );
+      const { EC, data } = response.data;
+      if (EC === 0 && data) {
+        setNotifications(data.items);
+        setTotalPages(data.totalPages);
       }
     } catch (error) {
       console.error("Error fetching notifications:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchNotifications();
-  }, []);
+  }, [currentPage]);
 
   // Handle mở modal edit
   const handleEdit = (notification: Notification) => {
@@ -139,15 +152,28 @@ const page = () => {
           target_user: selectedNotification.target_user,
         }
       );
-      const { EC, EM, data } = response.data;
+      const { EC } = response.data;
       if (EC === 0) {
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === selectedNotification.id ? data : n))
-        );
         setOpenEdit(false);
+        fetchNotifications();
+        toast({
+          title: "Success",
+          description: "Notification updated successfully.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update notification.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error updating notification:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -156,7 +182,7 @@ const page = () => {
 
     try {
       // Tạo bản sao của newBroadcast
-      let updatedBroadcast = { ...newBroadcast };
+      const updatedBroadcast = { ...newBroadcast };
 
       // Lọc content để chỉ giữ lại các role trong target_user
       const filteredContent: typeof updatedBroadcast.content = {};
@@ -187,15 +213,29 @@ const page = () => {
         "/notifications/broadcast",
         updatedBroadcast
       );
-      const { EC, EM, data } = response.data;
+      const { EC, EM } = response.data;
       if (EC === 0) {
         fetchNotifications();
         setOpenAdd(false);
+        toast({
+          title: "Success",
+          description: "Broadcast sent successfully.",
+        });
       } else {
-        console.error("Broadcast failed:", EM, data);
+        console.error("Broadcast failed:", EM);
+        toast({
+          title: "Error",
+          description: "Failed to send broadcast.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error broadcasting notification:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -252,6 +292,12 @@ const page = () => {
     });
   };
 
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
   // Handle upload ảnh lên Cloudinary
   const handleImageUpload = async (
     isEdit: boolean,
@@ -259,21 +305,36 @@ const page = () => {
     field: "avatar" | "image", // Phân biệt avatar hay image
     files: FileList
   ) => {
+    if (!files || files.length === 0) {
+      return;
+    }
+    const file = files[0];
     const formData = new FormData();
-    Array.from(files).forEach((file) => formData.append("file", file));
-    formData.append("file", selectedImage);
+    formData.append("file", file);
 
     try {
-      const response = await axiosInstance.post(`upload/image`, formData);
-      const { public_id, secure_url } = response.data;
-      const uploadedImage = { key: public_id, url: secure_url };
+      const response = await axiosInstance.post(`upload/image`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      const uploadResponse = response.data;
 
-      if (isEdit) {
-        setSelectedNotification((prev) =>
-          prev ? { ...prev, [field]: uploadedImage } : null
-        );
-      } else if (target) {
-        handleChangeAdd(target, field, uploadedImage);
+      if (uploadResponse.EC === 0 && uploadResponse.data?.url && uploadResponse.data?.public_id) {
+        const uploadedImage = {
+          url: uploadResponse.data.url,
+          key: uploadResponse.data.public_id,
+        };
+
+        if (isEdit) {
+          setSelectedNotification((prev) =>
+            prev ? { ...prev, [field]: uploadedImage } : null
+          );
+        } else if (target) {
+          handleChangeAdd(target, field, uploadedImage);
+        }
+      } else {
+        console.error("Image upload failed:", uploadResponse.EM);
       }
     } catch (error) {
       console.error("Error uploading image:", error);
@@ -403,13 +464,7 @@ const page = () => {
       ),
       cell: ({ row }) => (
         <div>
-          {new Date(
-            Number(row.getValue("created_at")) * 1000
-          ).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          })}
+          {formatEpochToDate(Number(row.getValue("created_at")))}
         </div>
       ),
     },
@@ -450,6 +505,7 @@ const page = () => {
 
   return (
     <div className="container mx-auto p-4">
+      <Spinner isVisible={isLoading} isOverlay />
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Notifications Manager</h1>
         <Button onClick={handleOpenAdd}>Broadcast Notification</Button>
@@ -485,6 +541,14 @@ const page = () => {
             ))}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="mt-4">
+        <SimplePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
       </div>
 
       {/* Modal chỉnh sửa notification */}
@@ -805,4 +869,4 @@ const page = () => {
   );
 };
 
-export default page;
+export default Page;
