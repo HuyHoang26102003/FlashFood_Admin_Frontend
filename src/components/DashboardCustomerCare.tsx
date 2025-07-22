@@ -110,6 +110,8 @@ const ListInquiries = ({
   );
   const [selectedTab, setSelectedTab] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const inquiriesPerPage = 5;
 
   // Filter inquiries based on selected tab, priority, status, and search query
   const filteredInquiries = useMemo(() => {
@@ -145,6 +147,21 @@ const ListInquiries = ({
     statusFilter,
     searchQuery,
   ]);
+
+  // Pagination logic
+  const indexOfLastInquiry = currentPage * inquiriesPerPage;
+  const indexOfFirstInquiry = indexOfLastInquiry - inquiriesPerPage;
+  const currentInquiries = filteredInquiries.slice(
+    indexOfFirstInquiry,
+    indexOfLastInquiry
+  );
+  const totalPages = Math.ceil(filteredInquiries.length / inquiriesPerPage);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
 
   // Function to get status color
   const getStatusColor = (status: ENUM_INQUIRY_STATUS) => {
@@ -244,8 +261,8 @@ const ListInquiries = ({
           </TabsTrigger>
         </TabsList>
       </Tabs>
-      <div className="space-y-4">
-        {filteredInquiries.map((ticket, index) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {currentInquiries.map((ticket, index) => (
           <Card
             key={index}
             style={{
@@ -315,14 +332,33 @@ const ListInquiries = ({
       </div>
 
       {/* Pagination */}
-      <div className="flex justify-center items-center space-x-2 mt-4">
-        <Button variant="outline">Previous</Button>
-        <Button variant="outline" className=" text-white bg-primary">
-          1
-        </Button>
-        <Button variant="outline">2</Button>
-        <Button variant="outline">Next</Button>
-      </div>
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center space-x-2 mt-4">
+          <Button
+            variant="outline"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          {[...Array(totalPages)].map((_, i) => (
+            <Button
+              key={i}
+              variant={currentPage === i + 1 ? "default" : "outline"}
+              onClick={() => handlePageChange(i + 1)}
+            >
+              {i + 1}
+            </Button>
+          ))}
+          <Button
+            variant="outline"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </>
   );
 };
@@ -435,6 +471,7 @@ const InquiryDetails = ({
 
   return (
     <div className="space-y-6">
+      <Spinner isVisible={isSubmitting} isOverlay />
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={onBack}>
           <ArrowLeft className="h-4 w-4 mr-1" />

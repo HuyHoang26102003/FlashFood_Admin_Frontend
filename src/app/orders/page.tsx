@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Eye, XCircle, MoreHorizontal } from "lucide-react";
+import { Eye, XCircle, MoreHorizontal, Trash, Loader2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -63,6 +63,8 @@ const Page = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
 
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -98,6 +100,16 @@ const Page = () => {
     setIsLoading(false);
   };
 
+  const handleDeleteOrder = (orderId: string) => {
+    setDeletingOrderId(orderId);
+    setIsDeleting(true);
+    setTimeout(() => {
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setIsDeleting(false);
+      setDeletingOrderId(null);
+    }, 1500);
+  };
+
   const fetchOrderDetails = async (orderId: string) => {
     setIsDialogLoading(true);
     try {
@@ -116,18 +128,6 @@ const Page = () => {
   useEffect(() => {
     fetchOrders();
   }, [currentPage]);
-
-  const handleCancelOrder = async (orderId: string) => {
-    setIsLoading(true);
-    try {
-      // Placeholder: Call orderService.cancelOrder(orderId) when implemented
-      console.log(`Cancel order ${orderId}`);
-      await fetchOrders();
-    } catch (error) {
-      console.error("Error cancelling order:", error);
-    }
-    setIsLoading(false);
-  };
 
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -249,6 +249,13 @@ const Page = () => {
       header: "Actions",
       cell: ({ row }) => {
         const order = row.original;
+        if (isDeleting && deletingOrderId === order.id) {
+          return (
+            <div className="flex justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          );
+        }
         return (
           <Popover>
             <PopoverTrigger asChild>
@@ -271,10 +278,10 @@ const Page = () => {
                     <Button
                       variant="ghost"
                       className="flex items-center justify-start text-destructive"
-                      onClick={() => handleCancelOrder(order.id)}
+                      onClick={() => handleDeleteOrder(order.id)}
                     >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Cancel Order
+                      <Trash className="mr-2 h-4 w-4" />
+                      Delete
                     </Button>
                   )}
               </div>
@@ -528,7 +535,8 @@ const Page = () => {
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold">{item.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            Price: ${Number(item.price_at_time_of_order).toFixed(2)} x{" "}
+                            Price: $
+                            {Number(item.price_at_time_of_order).toFixed(2)} x{" "}
                             {item.quantity}
                           </p>
                         </div>

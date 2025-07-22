@@ -507,8 +507,8 @@ const ConditionalTabContentRender = ({
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-800 mb-1">Pro Tips</h3>
                   <p className="text-sm text-gray-600">
-                    Use the &quot;Generate&quot; buttons to create realistic test data.
-                    Always test in a safe environment before using in
+                    Use the &quot;Generate&quot; buttons to create realistic
+                    test data. Always test in a safe environment before using in
                     production.
                   </p>
                 </div>
@@ -773,11 +773,19 @@ const ConditionalTabContentRender = ({
 };
 
 const Page = () => {
-  const [selectedTab, setSelectedTab] = useState<Enum_Tabs>(tabs[0]);
+  const adminZ = useAdminStore((state) => state.user);
+  const checkLoggedin = () => {
+    if (adminZ) return tabs[0];
+    return tabs[1];
+  };
+  const [selectedTab, setSelectedTab] = useState<Enum_Tabs>(checkLoggedin);
+  useEffect(() => {}, []);
+
+  const customerCareZ = useCustomerCareStore((state) => state.user);
 
   return (
     <div className="w-full mt-4 flex gap-4 justify-between">
-      <div className=" w-4/12 flex flex-col ">
+      <div className={` ${adminZ ? "w-4/12" : "hidden"} flex flex-col `}>
         {tabs?.map((item) => (
           <Button
             onClick={() => {
@@ -793,7 +801,7 @@ const Page = () => {
           </Button>
         ))}
       </div>
-      <div className="w-8/12  h-screen">
+      <div className={`${adminZ ? "w-8/12" : "w-full"}  h-screen`}>
         <ConditionalTabContentRender selectedTab={selectedTab} />
       </div>
     </div>

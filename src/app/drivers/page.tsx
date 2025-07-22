@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/Spinner";
-import { Eye, Power, Trash } from "lucide-react";
+import { Eye, Power, Trash, Loader2 } from "lucide-react";
 import { ArrowUpDown, MoreHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -58,11 +58,9 @@ import {
 import { formatEpochToExactTime } from "@/utils/functions/formatTime";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
 import { userSearchService } from "@/services/user/userSearchService";
 import { superAdminService } from "@/services/super-admin/superAdminService";
 import { useToast } from "@/hooks/use-toast";
-import { UserSearchResult } from "@/types/user-profile";
 
 export default function DriversPage() {
   const { toast } = useToast();
@@ -81,15 +79,30 @@ export default function DriversPage() {
   });
   const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState("");
-  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(
-    null
-  );
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [isBanLoading, setIsBanLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [driversSearchResult, setDriversSearchResult] = useState<Driver[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isUnbanning, setIsUnbanning] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingDriverId, setDeletingDriverId] = useState<string | null>(null);
+
+  const handleDeleteDriver = (driverId: string) => {
+    setDeletingDriverId(driverId);
+    setIsDeleting(true);
+    setTimeout(() => {
+      setDrivers((prev) => prev.filter((d) => d.id !== driverId));
+      setDriversSearchResult((prev) => prev.filter((d) => d.id !== driverId));
+      setIsDeleting(false);
+      setDeletingDriverId(null);
+      toast({
+        title: "Deleted",
+        description: "The driver has been removed from the list.",
+      });
+    }, 1500);
+  };
 
   useEffect(() => {
     const totalCount = drivers.length;
@@ -226,8 +239,7 @@ export default function DriversPage() {
         toast({
           title: "Error",
           description:
-            response.EM ||
-            `Failed to ${isUnbanning ? "unban" : "ban"} driver.`,
+            response.EM || `Failed to ${isUnbanning ? "unban" : "ban"} driver.`,
           variant: "destructive",
         });
       }
@@ -398,6 +410,13 @@ export default function DriversPage() {
       header: "Actions",
       cell: ({ row }) => {
         const driver = row.original;
+        if (isDeleting && deletingDriverId === driver.id) {
+          return (
+            <div className="flex justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          );
+        }
         return (
           <Popover>
             <PopoverTrigger asChild>
@@ -425,8 +444,15 @@ export default function DriversPage() {
                 >
                   <Power className="mr-2 h-4 w-4" />
                   {driver.is_banned ? "Unban" : "Ban"}
-                </Button>              
-                
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="flex items-center justify-start text-destructive hover:text-destructive"
+                  onClick={() => handleDeleteDriver(driver.id)}
+                >
+                  <Trash className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
               </div>
             </PopoverContent>
           </Popover>

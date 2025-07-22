@@ -56,6 +56,7 @@ import GroupSettingsDialog from "@/components/AdminChat/GroupSettingsDialog";
 import OrderReferenceDialog from "@/components/AdminChat/OrderReferenceDialog";
 import OrderHoverContent from "@/components/AdminChat/OrderHoverContent";
 import UserHoverContent from "@/components/AdminChat/UserHoverContent";
+import { Spinner } from "@/components/Spinner";
 
 interface MentionUser {
   userId: string;
@@ -1079,8 +1080,7 @@ export default function InternalChatPage() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading internal chat...</p>
+          <Spinner isVisible isOverlay />
         </div>
       </div>
     );
@@ -1422,7 +1422,7 @@ export default function InternalChatPage() {
               {isMessagesLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <Spinner isVisible isOverlay />
                     <p className="text-gray-600">Loading messages...</p>
                   </div>
                 </div>
@@ -1819,7 +1819,7 @@ export default function InternalChatPage() {
                   className="px-4"
                 >
                   {isSendingMessage ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Spinner isVisible isOverlay />
                   ) : (
                     <Send className="h-4 w-4" />
                   )}
