@@ -15,7 +15,7 @@ import {
   AD_SIDEBAR_ITEMS_CUSTOMER_CARE,
 } from "@/utils/appData";
 import { usePathname } from "next/navigation";
-import {  useEffect } from "react";
+import { useEffect } from "react";
 import { useAdminStore } from "@/stores/adminStore";
 import { useCustomerCareStore } from "@/stores/customerCareStore";
 
@@ -46,27 +46,42 @@ const SideBar = () => {
           { title: "Admin Management", link: "/admin" },
         ];
       case "COMPANION_ADMIN":
-        return AD_ADMIN_SIDEBAR_ITEMS.filter(
-          (item) =>
-            item.title !== "App Managers" &&
-            item.title !== "Customers Statistics" && 
-            item.title !== 'Balance Activity'
-        );
+        return AD_ADMIN_SIDEBAR_ITEMS.map((item) => {
+          if (item.title === "App Managers") {
+            const faqs = item.dropdownItem?.find(
+              (sub) => sub.title === "Manage FAQs"
+            );
+            if (faqs) {
+              return { ...item, dropdownItem: [faqs] };
+            }
+            return null; // This will be filtered out
+          }
+          return item;
+        }).filter((item): item is sideBarItem => {
+          if (!item) return false;
+          if (item.title === "Customers Statistics") return false;
+          return true;
+        });
       case "FINANCE_ADMIN": {
         const filteredItems = AD_ADMIN_SIDEBAR_ITEMS.filter(
           (item) =>
             item.title !== "Drivers Statistics" &&
             item.title !== "Restaurant Owner Statistics" &&
             item.title !== "Customers Statistics" &&
-            item.title !== "Customer Care Team"
+            item.title !== "Customer Care Team" &&
+            item.title !== "Orders Statistics"
         );
         const appManagerItems =
-          AD_ADMIN_SIDEBAR_ITEMS.find(
-            (item) => item.title === "App Managers"
-          )?.dropdownItem?.map((subItem) => ({
-            title: subItem.title,
-            link: subItem.link,
-          })) || [];
+          AD_ADMIN_SIDEBAR_ITEMS.find((item) => item.title === "App Managers")
+            ?.dropdownItem?.filter(
+              (subItem) =>
+                subItem.title !== "Manage FAQs" &&
+                subItem.title !== "Manage Notifications"
+            )
+            .map((subItem) => ({
+              title: subItem.title,
+              link: subItem.link,
+            })) || [];
         return [
           ...filteredItems.filter((item) => item.title !== "App Managers"),
           ...appManagerItems,

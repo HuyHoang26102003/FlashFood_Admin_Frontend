@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import axiosInstance from "@/lib/axios";
 import { useRouter } from "next/navigation"; // Thêm useRouter
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
-import { jwtDecode } from "jwt-decode";
+import { jwtDecode, JwtPayload } from "jwt-decode";
 import {
   Select,
   SelectContent,
@@ -33,6 +34,16 @@ interface AuthDialogContentProps {
   onClose: () => void; // Prop để đóng dialog
 }
 
+interface CustomJwtPayload extends JwtPayload {
+  id: string;
+  email: string;
+  logged_in_as:
+    | "SUPER_ADMIN"
+    | "COMPANION_ADMIN"
+    | "FINANCE_ADMIN"
+    | "CUSTOMER_CARE_REPRESENTATIVE";
+}
+
 const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
   const router = useRouter(); // Khởi tạo router
 
@@ -43,18 +54,23 @@ const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
   const [lastName, setLastName] = useState("");
   const [error, setError] = useState<string | null>(null); // State để hiển thị lỗi
   const [userType, setUserType] = useState<string>(""); // State để lưu giá trị từ Select
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const setAdminUser = useAdminStore((state) => state.setUser); // Từ admin store
   const setCustomerCareUser = useCustomerCareStore((state) => state.setUser); // Từ customer care store
 
   const handleLogin = async () => {
     setError(null);
+    setIsLoading(true);
 
     if (!email || !password) {
       setError("Email and Password cannot be empty");
+      setIsLoading(false);
       return;
     }
     if (!userType) {
       setError("Please select a user type");
+      setIsLoading(false);
       return;
     }
 
@@ -74,6 +90,7 @@ const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
         break;
       default:
         setError("Invalid user type selected");
+        setIsLoading(false);
         return;
     }
 
@@ -97,7 +114,7 @@ const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
         localStorage.setItem("access_token", accessToken);
 
         // Decode JWT
-        const decodedToken = jwtDecode(accessToken);
+        const decodedToken = jwtDecode<CustomJwtPayload>(accessToken);
 
         // Kiểm tra vai trò và set vào store tương ứng
         if (decodedToken.logged_in_as === "CUSTOMER_CARE_REPRESENTATIVE") {
@@ -119,20 +136,25 @@ const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
     } catch (error) {
       console.error("Login error:", error);
       setError("An unexpected error occurred during login");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSignup = async () => {
     // Reset error trước khi gọi API
     setError(null);
+    setIsLoading(true);
 
     // Validate input
     if (!email || !password || !firstName || !lastName) {
       setError("All fields are required for signup");
+      setIsLoading(false);
       return;
     }
     if (!userType) {
       setError("Please select a user type");
+      setIsLoading(false);
       return;
     }
 
@@ -153,6 +175,7 @@ const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
         break;
       default:
         setError("Invalid user type selected");
+        setIsLoading(false);
         return;
     }
 
@@ -189,6 +212,8 @@ const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
     } catch (error) {
       console.error("Signup error:", error);
       setError("An unexpected error occurred during signup");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -274,18 +299,31 @@ const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
             </div>
 
             {/* Password */}
-            <div className="grid grid-cols-4 items-center gap-4">
+            <div className="grid grid-cols-4 items-center gap-4 relative">
               <Label htmlFor="password" className="text-right">
                 Password
               </Label>
               <Input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="********"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="col-span-3 border-gray-300 focus:ring-primary-500 focus:border-primary-500"
+                className="col-span-3 border-gray-300 focus:ring-primary-500 focus:border-primary-500 pr-10"
               />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer col-start-2 col-span-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-gray-500 focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -303,7 +341,9 @@ const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
           <DialogFooter className="w-full flex flex-col gap-4">
             <Select onValueChange={(value) => setUserType(value)}>
               <SelectTrigger className="">
-                <SelectValue placeholder="Login as" />
+                <SelectValue
+                  placeholder={`${isLogin ? "Login as" : "Sign up as"}`}
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
@@ -321,7 +361,9 @@ const AuthDialogContent = ({ onClose }: AuthDialogContentProps) => {
               onClick={isLogin ? handleLogin : handleSignup}
               type="submit"
               className="bg-primary-500 hover:bg-primary-600 text-white w-full"
+              disabled={isLoading}
             >
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isLogin ? "Sign In" : "Sign Up"}
             </Button>
           </DialogFooter>
