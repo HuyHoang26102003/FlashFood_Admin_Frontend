@@ -92,7 +92,14 @@ export const createAdminSocket = (token: string | null) => {
   adminSocketInstance.on(
     "newly_created_entity_notification",
     (data: NewlyCreatedEntityPayload) => {
-      console.log("📊 Received entity notification:", data.entity_name, data);
+      console.log(
+        `[Admin Socket] Received entity notification:
+        - Entity Name: ${data.entity_name}
+        - Message: ${data.message}
+        - Event Type: ${data.event_type}
+        - Timestamp: ${new Date(data.timestamp).toLocaleString()}`,
+        data
+      );
     }
   );
 
@@ -110,7 +117,9 @@ export const disconnectAdminSocket = () => {
 };
 
 export const adminSocket = {
-  onNewlyCreatedEntity: (callback: (data: NewlyCreatedEntityPayload) => void) => {
+  onNewlyCreatedEntity: (
+    callback: (data: NewlyCreatedEntityPayload) => void
+  ) => {
     if (adminSocketInstance) {
       adminSocketInstance.on("newly_created_entity_notification", callback);
     }

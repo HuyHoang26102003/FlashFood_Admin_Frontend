@@ -42,8 +42,8 @@ const AdminDashboard = () => {
   });
 
   // === Highlight state management ===
-  const [highlightCardTypes, setHighlightCardTypes] = useState<CardCategory[]>(
-    []
+  const [highlightedCardType, setHighlightedCardType] = useState<string | null>(
+    null
   );
   const [highlightMetric, setHighlightMetric] = useState<string>();
 
@@ -73,11 +73,13 @@ const AdminDashboard = () => {
       const ent = data.entity_name.toLowerCase();
 
       // Determine highlight targets based on entity type
+      let cardToHighlight: CardCategory | null = null;
       if (ent === "order") {
-        setHighlightCardTypes(["TOTAL_ORDERS"]);
+        cardToHighlight = "TOTAL_ORDERS";
+      } else if (ent === "driver") {
+        cardToHighlight = "TOTAL_USERS";
       } else if (
         [
-          "driver",
           "restaurant",
           "restaurant_owner",
           "customer",
@@ -85,15 +87,18 @@ const AdminDashboard = () => {
           "customer_care_representative",
         ].includes(ent)
       ) {
-        setHighlightCardTypes(["TOTAL_USERS"]);
+        cardToHighlight = "TOTAL_USERS";
         setHighlightMetric("Total Users");
       }
 
-      // Reset highlights after a short duration
-      setTimeout(() => {
-        setHighlightCardTypes([]);
-        setHighlightMetric(undefined);
-      }, HIGHLIGHT_DURATION);
+      if (cardToHighlight) {
+        setHighlightedCardType(cardToHighlight);
+        // Reset highlights after a short duration
+        setTimeout(() => {
+          setHighlightedCardType(null);
+          setHighlightMetric(undefined);
+        }, HIGHLIGHT_DURATION);
+      }
 
       // === Add notification based on preferences ===
       let shouldShowNotification = false;
@@ -252,7 +257,7 @@ const AdminDashboard = () => {
 
       <DashboardListCards
         data={dashboardCardsData}
-        highlightTypes={highlightCardTypes}
+        highlightedCard={highlightedCardType}
       />
 
       <div className="jb gap-4 max-lg:grid max-lg:grid-cols-1">

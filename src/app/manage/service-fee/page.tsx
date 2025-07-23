@@ -67,6 +67,7 @@ const FinanceRulePage = () => {
   const [openEdit, setOpenEdit] = useState<boolean>(false);
   const [openAdd, setOpenAdd] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [newWageEntry, setNewWageEntry] = useState({ range: "", value: "" });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const { toast } = useToast();
@@ -112,6 +113,7 @@ const FinanceRulePage = () => {
       description: "",
       created_at: Date.now() / 1000, // Epoch seconds
     });
+    setNewWageEntry({ range: "", value: "" });
     setOpenAdd(true);
   };
 
@@ -130,6 +132,8 @@ const FinanceRulePage = () => {
             : undefined,
           created_by: undefined,
           customer_care_hourly_wage: +selectedRule.customer_care_hourly_wage,
+          app_service_fee: +selectedRule.app_service_fee,
+          restaurant_commission: +selectedRule.restaurant_commission,
         }
       );
       const { EC } = response.data;
@@ -575,18 +579,59 @@ const FinanceRulePage = () => {
                 <Label>Driver Fixed Wage</Label>
                 {Object.entries(newRule.driver_fixed_wage).map(
                   ([range, value]) => (
-                    <div key={range} className="flex items-center gap-2">
+                    <div key={range} className="flex items-center gap-2 mb-1">
                       <Input value={range} disabled className="w-1/3" />
                       <Input
+                        type="number"
                         value={value}
                         onChange={(e) =>
                           handleDriverWageChangeAdd(range, e.target.value)
                         }
-                        className="w-2/3"
+                        className="w-1/3"
                       />
                     </div>
                   )
                 )}
+                <div className="flex items-center gap-2 mt-2">
+                  <Input
+                    placeholder="e.g., 0-5km"
+                    value={newWageEntry.range}
+                    onChange={(e) =>
+                      setNewWageEntry({
+                        ...newWageEntry,
+                        range: e.target.value,
+                      })
+                    }
+                    className="w-1/3"
+                  />
+                  <Input
+                    placeholder="Wage"
+                    type="number"
+                    value={newWageEntry.value}
+                    onChange={(e) =>
+                      setNewWageEntry({
+                        ...newWageEntry,
+                        value: e.target.value,
+                      })
+                    }
+                    className="w-1/3"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (newWageEntry.range) {
+                        handleDriverWageChangeAdd(
+                          newWageEntry.range,
+                          newWageEntry.value || "0"
+                        );
+                        setNewWageEntry({ range: "", value: "" });
+                      }
+                    }}
+                  >
+                    Add Range
+                  </Button>
+                </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="description" className="text-right">

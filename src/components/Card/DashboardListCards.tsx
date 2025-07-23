@@ -5,24 +5,23 @@ import { CardCategory } from "@/utils/constants/card";
 
 interface DashboardListCardsProps {
   data: IDashboardListCards[];
-  highlightTypes?: CardCategory[];
+  highlightedCard?: string | null;
 }
 
 const DashboardListCards = ({
   data,
-  highlightTypes = [],
+  highlightedCard,
 }: DashboardListCardsProps) => {
   if (!data) return;
   return (
     <div className="jb gap-4 py-6 max-lg:grid max-lg:grid-cols-2 ">
       {data.map((item) => {
+        const isHighlighted = highlightedCard === item.type;
         return (
           <div
             key={item.id}
             className={`card md:flex-1 flex items-center min-h-32 gap-4 relative hover-sd transition-all duration-300 ${
-              highlightTypes.includes(item.type as CardCategory)
-                ? "ring-4 ring-success-500/70 animate-pulse"
-                : ""
+              isHighlighted ? "ring-4 ring-success-500/70 animate-pulse" : ""
             }`}
           >
             <div
