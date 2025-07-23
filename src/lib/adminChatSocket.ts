@@ -14,6 +14,7 @@ import {
   OrderReference,
   AdminChatParticipant,
 } from "@/types/admin-chat";
+import { API_IP } from "@/constants/links";
 
 let adminChatSocketInstance: Socket | null = null;
 
@@ -40,7 +41,7 @@ export const createAdminChatSocket = (token: string | null) => {
     adminChatSocketInstance = null;
   }
 
-  adminChatSocketInstance = io("http://localhost:1310/admin-chat", {
+  adminChatSocketInstance = io(`${API_IP}:1310/admin-chat`, {
     transports: ["websocket"],
     auth: {
       token: `Bearer ${trimmedToken}`,

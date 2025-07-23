@@ -58,6 +58,36 @@ type TypeSeedingAccordionItem = {
 
 const seedingAccordionItems: TypeSeedingAccordionItem[] = [
   {
+    id: 2,
+    titleTrigger: "Driver",
+    content: [
+      {
+        id: 1,
+        onClick: (router, toast) => {
+          if (!toast) return;
+          const generateDriver = async () => {
+            const result = await driverService.createDriver();
+            if (result.EC === 0) {
+              toast({
+                title: "Success",
+                description: result.EM,
+              });
+            }
+          };
+          generateDriver();
+        },
+        title: "Generate Driver",
+        variant: "default",
+      },
+      {
+        id: 2,
+        onClick: (router: AppRouterInstance) => router.push("/drivers"),
+        title: "Manage Driver",
+        variant: "outline",
+      },
+    ],
+  },
+  {
     id: 1,
     titleTrigger: "Customer",
     content: [
@@ -89,36 +119,7 @@ const seedingAccordionItems: TypeSeedingAccordionItem[] = [
       },
     ],
   },
-  {
-    id: 2,
-    titleTrigger: "Driver",
-    content: [
-      {
-        id: 1,
-        onClick: (router, toast) => {
-          if (!toast) return;
-          const generateDriver = async () => {
-            const result = await driverService.createDriver();
-            if (result.EC === 0) {
-              toast({
-                title: "Success",
-                description: result.EM,
-              });
-            }
-          };
-          generateDriver();
-        },
-        title: "Generate Driver",
-        variant: "default",
-      },
-      {
-        id: 2,
-        onClick: (router: AppRouterInstance) => router.push("/drivers"),
-        title: "Manage Driver",
-        variant: "outline",
-      },
-    ],
-  },
+
   {
     id: 3,
     titleTrigger: "Retaurant Owner",
@@ -438,7 +439,7 @@ const ConditionalTabContentRender = ({
                         </span>
                       )}
                     </div>
-                    <div>
+                    <div className="w-8/12">
                       <CardTitle className="text-lg font-semibold text-gray-800">
                         {item.titleTrigger}
                       </CardTitle>
@@ -463,20 +464,20 @@ const ConditionalTabContentRender = ({
                         variant={action.variant}
                         className={`w-full justify-start h-12 ${
                           action.variant === "default"
-                            ? "bg-primary-600 hover:bg-primary-700 text-white shadow-md hover:shadow-lg transition-all"
-                            : "border-2 border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-all"
+                            ? "bg-primary-600 w-42 hover:bg-primary-700 text-white shadow-md hover:shadow-lg transition-all"
+                            : "border-2 w-42 border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-all"
                         }`}
                       >
-                        <div className="flex items-center space-x-3">
-                          <span className="text-lg">
+                        <div className="flex items-center  ">
+                          {/* <span className="text-lg">
                             {action.title.includes("Generate") ? "⚡" : "⚙️"}
-                          </span>
-                          <div className="text-left">
+                          </span> */}
+                          <div className="text-left flex-1">
                             <div className="font-medium">{action.title}</div>
-                            <div className="text-xs opacity-75">
+                            <div className="text-xs opacity-75 flex flex-wrap">
                               {action.title.includes("Generate")
                                 ? "Create new test data"
-                                : "View and manage existing data"}
+                                : "View and manage"}
                             </div>
                           </div>
                         </div>

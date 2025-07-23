@@ -1,86 +1,387 @@
-# FlashFood Admin Dashboard
+# Admin FlashFood Web Frontend
 
-A comprehensive admin management system for FlashFood delivery platform with role-based access control, real-time analytics, and multi-user management capabilities.
+This is the admin dashboard for the FlashFood application, built with Next.js 14, TypeScript, and Tailwind CSS.
 
-## 🚀 Features
+## Features
 
-### 🔐 Role-Based Access Control (RBAC)
+### Dashboard & Analytics
 
-- **Super Admin**: Complete system oversight and user management
-- **Finance Admin**: Financial operations, revenue analytics, and promotion management
-- **Companion Admin**: Customer care, driver, and restaurant management
+- Real-time dashboard with live updates via WebSocket
+- User growth analytics and charts
+- Order statistics and revenue tracking
+- Entity notifications and status indicators
 
-### 📊 Real-time Dashboard & Analytics
+### User Management
 
-- **Live Statistics**: Real-time monitoring of key metrics
-- **Revenue Analytics**: Net revenue tracking and financial insights
-- **User Growth Metrics**: Customer acquisition and retention analytics
-- **Order Statistics**: Order volume, status, and performance tracking
-- **Balance Activity**: Transaction monitoring and financial flow analysis
+- Customer management with CRUD operations
+- Driver management and tracking
+- Restaurant owner administration
+- Customer care representative management
 
-### 👥 Comprehensive User Management
+### Support Chat System (NEW)
 
-- **Customer Management**: Profile management, account status control, and activity monitoring
-- **Driver Management**: Individual driver profiles, performance tracking, and account management
-- **Restaurant Owner Management**: Restaurant operations and owner account oversight
-- **Admin Management**: Role assignments and permission management
+A comprehensive real-time support chat system that replaces the previous order chat functionality. This system is designed for customer care agents and admins to handle customer support requests efficiently.
 
-### 💬 Multi-Channel Communication
+#### Key Features:
 
-- **Integrated Chat System**: Real-time communication between customers, drivers, restaurants, and customer care
-- **Customer Care Portal**: Inquiry management with escalation workflows
-- **Notification System**: Real-time alerts and system notifications
+**Agent Management:**
 
-### 📦 Business Operations Management
+- ✅ Agent registration with skills, languages, and specializations
+- ✅ Real-time availability status (Available/Unavailable/Busy)
+- ✅ Automatic session assignment based on agent availability and skills
+- ✅ Multi-tier support system (Tier 1, Tier 2, Tier 3, Supervisor)
+- ✅ Agent metrics and performance tracking
 
-- **Order Management**: Complete order lifecycle tracking and management
-- **Promotion Management**: Campaign creation, monitoring, and analytics
-- **Service Fee Configuration**: Dynamic fee management and optimization
-- **FAQ Management**: Knowledge base maintenance for customer support
+**Support Sessions:**
 
-### 💰 Financial Operations
+- ✅ Real-time customer support sessions
+- ✅ Bot-to-human escalation workflow
+- ✅ Priority-based queue management (Low, Medium, High, Urgent)
+- ✅ Category-based session routing (Technical, Billing, General)
+- ✅ Session transfer and escalation capabilities
+- ✅ SLA monitoring and violation alerts
 
-- **Revenue Dashboard**: Comprehensive income and expense tracking
-- **Transaction Monitoring**: Real-time balance activity and financial flows
-- **Performance Metrics**: Financial KPIs and business intelligence
+**Messaging System:**
 
-### ⚡ Real-time Capabilities
+- ✅ Real-time messaging between agents and customers
+- ✅ Support for text, images, voice, and file attachments
+- ✅ Chatbot integration with smart responses
+- ✅ Quick reply options and suggested actions
+- ✅ Message history and session persistence
 
-- **Live Data Updates**: Socket-based real-time data synchronization
-- **Status Indicators**: Live system status and user activity monitoring
-- **Instant Notifications**: Real-time alerts for critical events
+**Queue Management:**
 
-## 🛠 Technical Stack
+- ✅ Customer waiting queue with position tracking
+- ✅ Estimated wait time calculations
+- ✅ Priority-based queue sorting
+- ✅ Automatic agent assignment algorithms
 
-- **Framework**: Next.js 14 with TypeScript
-- **UI Components**: Custom component library with Tailwind CSS
-- **State Management**: Zustand stores for global state
-- **Real-time Communication**: Socket.io integration
-- **Charts & Analytics**: Custom chart components
-- **API Integration**: Axios-based service layer
+#### Architecture:
 
-## 📁 Project Structure
+The support chat system integrates with the `fchatgateway-backend.ts` WebSocket gateway using the `/chat` namespace. It includes:
 
-\*\*1 DONE 3/3 (FINISHED generating avg satisfaction rate)
-fix churn rate, promotion sold, average satisfaction rate (generate rating review)
+1. **Frontend Components:**
 
-\*\*2 DONE
-generate customercare inquiries
+   - `src/app/chats/page.tsx` - Main support chat interface
+   - `src/lib/socket.ts` - Socket communication utilities
+   - `src/types/chat.ts` - TypeScript type definitions
 
-\*\*3 DONE
-ban acc (Driver, restaurant, customer, customer care)
+2. **Backend Integration:**
 
-\*\*4 DONE
-escalte customercare inquiries to admin
+   - WebSocket events for real-time communication
+   - Agent registration and status management
+   - Support session lifecycle management
+   - Message routing and delivery
 
-\*\*5
-chat cc - driver - customer - restaurant
+3. **Key Socket Events:**
+   - `agentRegister` - Register as a support agent
+   - `agentAvailable/agentUnavailable` - Set availability status
+   - `newCustomerAssigned` - Receive new customer assignments
+   - `sendAgentMessage` - Send messages to customers
+   - `customerMessage` - Receive messages from customers
+   - `sessionTransferred` - Handle session transfers
+   - `sessionEscalated` - Handle session escalations
 
-\*\*6 DONE
-implement admin, customercare details (first_name, last_name, avatar) global state => edit profile (/settings)
+#### Usage for Customer Care Agents:
 
-\*\*7 DONE
-implement transaction fluctuation over period (income - outcome line chart)
+1. **Getting Started:**
 
-\*\*8
-fix UI bugs when assign permissions for admin
+   - Navigate to `/chats` in the admin dashboard
+   - The system automatically registers you as an agent upon connection
+   - Set your status to "Available" to start receiving customer requests
+
+2. **Handling Sessions:**
+
+   - View active sessions in the sidebar with priority indicators
+   - Click on a session to start chatting with the customer
+   - Use the message input to send responses
+   - Monitor session status and priority levels
+
+3. **Session Management:**
+
+   - Transfer sessions to other agents when needed
+   - Escalate complex issues to higher tiers
+   - End sessions with resolution notes and satisfaction ratings
+
+4. **Agent Dashboard:**
+   - Monitor your availability status
+   - View real-time metrics (active sessions, daily totals)
+   - Filter sessions by category and priority
+   - Search through active sessions
+
+#### Technical Implementation:
+
+**Socket Connection:**
+
+```typescript
+// Automatic connection and agent registration
+const socket = createSocket(token);
+socket.emit("agentRegister", {
+  skills: ["general-support", "technical-support"],
+  languages: ["en"],
+  maxSessions: 5,
+  specializations: ["customer-service"],
+  tier: "tier1",
+});
+```
+
+**Message Handling:**
+
+```typescript
+// Send message to customer
+socket.emit("sendAgentMessage", {
+  sessionId: session.sessionId,
+  message: "How can I help you today?",
+  messageType: "text",
+});
+
+// Receive customer messages
+socket.on("customerMessage", (data) => {
+  // Handle incoming customer message
+  console.log("Customer message:", data.message);
+});
+```
+
+**Session Management:**
+
+```typescript
+// Handle new customer assignment
+socket.on("newCustomerAssigned", (data) => {
+  const newSession = {
+    sessionId: data.sessionId,
+    customerId: data.customerId,
+    priority: data.priority,
+    category: data.category,
+  };
+  // Add to active sessions
+});
+```
+
+#### Configuration:
+
+The support chat system requires:
+
+- Valid authentication token (Admin or Customer Care)
+- WebSocket connection to the fchatgateway
+- Proper role-based access control (CUSTOMER_CARE_REPRESENTATIVE or ADMIN)
+
+#### Benefits:
+
+1. **Improved Customer Experience:**
+
+   - Faster response times with real-time messaging
+   - Intelligent bot-to-human escalation
+   - Priority-based queue management
+
+2. **Enhanced Agent Productivity:**
+
+   - Streamlined interface for handling multiple sessions
+   - Automatic session assignment based on skills
+   - Performance metrics and tracking
+
+3. **Better Management Oversight:**
+   - Real-time metrics and analytics
+   - SLA monitoring and compliance
+   - Session transfer and escalation tracking
+
+### Order Management
+
+- Real-time order tracking and status updates
+- Order statistics and analytics
+- Order details and customer information
+
+### Content Management
+
+- Promotions and marketing campaigns
+- FAQ management and organization
+- Notification management system
+
+### Settings & Configuration
+
+- System settings and preferences
+- User role management and permissions
+- Application configuration options
+
+## Technology Stack
+
+- **Framework:** Next.js 14 with App Router
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **UI Components:** Radix UI primitives
+- **State Management:** Zustand
+- **Real-time Communication:** Socket.IO
+- **HTTP Client:** Axios
+- **Charts:** Recharts
+- **Icons:** Lucide React
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+- Access to the FlashFood backend API
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone <repository-url>
+cd Admin-Flashfood-web-frontend
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Set up environment variables:
+
+```bash
+cp .env.example .env.local
+```
+
+4. Configure your environment variables in `.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=your_backend_api_url
+NEXT_PUBLIC_SOCKET_URL=your_socket_server_url
+```
+
+5. Run the development server:
+
+```bash
+npm run dev
+```
+
+6. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Building for Production
+
+```bash
+npm run build
+npm start
+```
+
+## Project Structure
+
+```
+src/
+├── app/                    # Next.js app directory
+│   ├── chats/             # Support chat system
+│   ├── customers/         # Customer management
+│   ├── drivers/           # Driver management
+│   ├── orders/            # Order management
+│   ├── settings/          # Application settings
+│   └── ...
+├── components/            # Reusable UI components
+│   ├── ui/               # Base UI components (shadcn/ui)
+│   ├── AdminChat/        # Admin chat components
+│   ├── Chart/            # Chart components
+│   └── ...
+├── hooks/                # Custom React hooks
+├── lib/                  # Utility libraries
+│   ├── socket.ts         # Socket.IO utilities
+│   ├── axios.ts          # HTTP client configuration
+│   └── utils.ts          # General utilities
+├── services/             # API service functions
+├── stores/               # Zustand state stores
+├── types/                # TypeScript type definitions
+└── utils/                # Utility functions
+```
+
+## Key Features Implementation
+
+### Real-time Updates
+
+The application uses Socket.IO for real-time updates across multiple features:
+
+- Dashboard notifications
+- Support chat messaging
+- Order status updates
+- System alerts
+
+### Role-Based Access Control
+
+Different user roles have different permissions:
+
+- **Super Admin:** Full system access
+- **Finance Admin:** Financial data and promotions
+- **Companion Admin:** User management and FAQs
+- **Customer Care:** Support chat and inquiries
+
+### Data Management
+
+- Efficient state management with Zustand
+- Real-time data synchronization
+- Optimistic updates for better UX
+- Error handling and retry mechanisms
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes and test thoroughly
+4. Commit your changes: `git commit -m 'Add amazing feature'`
+5. Push to the branch: `git push origin feature/amazing-feature`
+6. Open a Pull Request
+
+## Development Guidelines
+
+### Code Style
+
+- Use TypeScript for all new code
+- Follow the existing naming conventions
+- Add proper type definitions
+- Include JSDoc comments for complex functions
+
+### Component Structure
+
+- Use functional components with hooks
+- Implement proper error boundaries
+- Add loading states for async operations
+- Include accessibility attributes
+
+### State Management
+
+- Use Zustand for global state
+- Keep component state local when possible
+- Implement proper cleanup in useEffect
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Socket Connection Issues:**
+
+   - Check if the backend server is running
+   - Verify the socket URL in environment variables
+   - Ensure proper authentication tokens
+
+2. **Build Errors:**
+
+   - Clear node_modules and reinstall dependencies
+   - Check for TypeScript errors
+   - Verify all required environment variables
+
+3. **Support Chat Not Working:**
+   - Ensure user has proper role (CUSTOMER_CARE_REPRESENTATIVE or ADMIN)
+   - Check WebSocket connection status
+   - Verify fchatgateway backend is running
+
+### Performance Tips
+
+- Use React.memo for expensive components
+- Implement proper pagination for large datasets
+- Optimize images and assets
+- Use proper error boundaries
+
+## License
+
+This project is proprietary software for FlashFood internal use only.
+
+## Support
+
+For technical support or questions about the support chat system implementation, please contact the development team.

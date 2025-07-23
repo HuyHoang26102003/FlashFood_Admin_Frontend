@@ -11,809 +11,1013 @@ import {
   Send,
   Search,
   X,
+  Users,
+  Settings,
+  MessageCircle,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  UserCheck,
+  UserX,
+  Bot,
+  User,
+  PhoneCall,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useCustomerCareStore } from "@/stores/customerCareStore";
 import { useAdminStore } from "@/stores/adminStore";
-import { chatSocket, createSocket } from "@/lib/socket";
-import {
-  ChatResponse,
-  CustomerCareSender,
-  CustomerSender,
-  DriverSender,
-  RestaurantSender,
-  ChatMessage,
-  Message,
-} from "@/types/chat";
+import { createSocket } from "@/lib/socket";
 import { formatDateToRelativeTime } from "@/utils/functions/formatRelativeTime";
 import { limitCharacters } from "@/utils/functions/stringFunc";
-import {
-  userSearchService,
-  UserSearchResult,
-} from "@/services/user/userSearchService";
+import { useToast } from "@/hooks/use-toast";
 
-interface Avatar {
-  key: string;
-  url: string;
-}
-
-interface LastMessage {
-  id: string;
-  roomId: string;
-  senderId: string;
-  senderType: string;
-  content: string;
-  messageType: string;
-  timestamp: string;
-  readBy: string[];
-  customerSender: CustomerSender | null;
-  driverSender: DriverSender | null;
-  restaurantSender: RestaurantSender | null;
-  customerCareSender: CustomerCareSender | null;
-  sender:
-    | CustomerSender
-    | DriverSender
-    | RestaurantSender
-    | CustomerCareSender
-    | null;
-}
-
-interface Participant {
+// Support Chat Types
+interface SupportSession {
+  sessionId: string;
   userId: string;
   userType: string;
-  first_name?: string;
-  last_name?: string;
-  restaurant_name?: string;
-  avatar?: Avatar | null;
-  phone?: string;
-  contact_email?: string[];
-  contact_phone?: { phone: string }[];
-}
-
-interface ChatRoom {
-  roomId: string;
-  type: string;
-  otherParticipant: Participant;
-  lastMessage: LastMessage;
+  chatMode: "bot" | "human";
+  status: "active" | "waiting" | "assigned" | "ended";
+  priority: "low" | "medium" | "high" | "urgent";
+  category?: string;
+  agentId?: string;
+  startTime: string;
   lastActivity: string;
-  relatedId: string | null;
+  slaDeadline?: string;
+  transferHistory?: any[];
+  customerProfile?: {
+    id: string;
+    name: string;
+    email?: string;
+    userType: string;
+    avatar?: string;
+  };
 }
 
-export default function ChatPage() {
-  const [message, setMessage] = useState("");
-  const [chats, setChats] = useState<ChatResponse>({
-    ongoing: [],
-    awaiting: [],
-  });
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+interface SupportMessage {
+  id: string;
+  sessionId: string;
+  senderId: string;
+  senderType:
+    | "CUSTOMER_CARE_REPRESENTATIVE"
+    | "CUSTOMER"
+    | "DRIVER"
+    | "RESTAURANT_OWNER"
+    | "BOT"
+    | "ADMIN";
+  content: string;
+  messageType: "text" | "image" | "voice" | "file";
+  timestamp: string;
+  metadata?: Record<string, any>;
+  sender?: string;
+  agentName?: string;
+  options?: Array<{ text: string; value: string }>;
+  quickReplies?: string[];
+  cards?: Array<{
+    title: string;
+    description?: string;
+    image?: string;
+    actions?: Array<{ text: string; value: string }>;
+  }>;
+  formFields?: Array<{
+    name: string;
+    label: string;
+    type: "text" | "number" | "email" | "select";
+    required?: boolean;
+    options?: string[];
+  }>;
+  followUpPrompt?: string;
+  suggestedActions?: string[];
+  confidence?: number;
+  queueInfo?: {
+    position: number;
+    estimatedWaitTime: number;
+  };
+  isTemporary?: boolean;
+}
+
+interface AgentProfile {
+  id: string;
+  name: string;
+  email: string;
+  skills: string[];
+  languages: string[];
+  maxSessions: number;
+  specializations: string[];
+  tier: "tier1" | "tier2" | "tier3" | "supervisor";
+}
+
+interface AgentMetrics {
+  status: "available" | "unavailable" | "busy";
+  activeSessions: number;
+  totalSessionsToday: number;
+  averageResponseTime: number;
+  customerSatisfactionRating: number;
+}
+
+export default function SupportChatPage() {
+  // Core state
   const [socket, setSocket] = useState<ReturnType<typeof createSocket> | null>(
     null
   );
-  const [pendingMessages, setPendingMessages] = useState<
-    {
-      content: string;
-      roomId: string;
-      timestamp: string;
-    }[]
-  >([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
-  // const hasFetchedHistory = useRef<{ [key: string]: boolean }>({});
+  const [isConnected, setIsConnected] = useState(false);
+  const [currentMessage, setCurrentMessage] = useState("");
 
+  // Agent state
+  const [isAgentRegistered, setIsAgentRegistered] = useState(false);
+  const [agentProfile, setAgentProfile] = useState<AgentProfile | null>(null);
+  const [agentMetrics, setAgentMetrics] = useState<AgentMetrics | null>(null);
+  const [isAgentAvailable, setIsAgentAvailable] = useState(false);
+
+  // Support sessions state
+  const [activeSessions, setActiveSessions] = useState<SupportSession[]>([]);
+  const [selectedSession, setSelectedSession] = useState<SupportSession | null>(
+    null
+  );
+  const [sessionMessages, setSessionMessages] = useState<SupportMessage[]>([]);
+  const [waitingCustomers, setWaitingCustomers] = useState<SupportSession[]>(
+    []
+  );
+
+  // UI state
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedPriority, setSelectedPriority] = useState<string>("all");
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  // Get current user and token
   const getAccessToken = () => {
     const adminStore = useAdminStore.getState();
     const customerCareStore = useCustomerCareStore.getState();
 
-    // Check admin token first
     if (adminStore.isAuthenticated && adminStore.user) {
-      console.log("Using admin token");
       return adminStore.user.accessToken;
     }
 
-    // Fallback to customer care token
     if (customerCareStore.isAuthenticated && customerCareStore.user) {
-      console.log("Using customer care token");
       return customerCareStore.user.accessToken;
     }
 
-    console.log("No valid token found");
     return null;
   };
-  console.log("check get acace token", getAccessToken());
 
-  const fetchAllChats = async (
-    socketInstance: ReturnType<typeof createSocket>
-  ) => {
-    try {
-      console.log("Starting to fetch all chats...");
-      console.log("Socket connection status:", socketInstance.connected);
+  const getCurrentUser = () => {
+    const adminStore = useAdminStore.getState();
+    const customerCareStore = useCustomerCareStore.getState();
 
-      const result = await chatSocket.getAllChats(socketInstance);
-      console.log("Successfully fetched chats:", result);
-      setChats(result);
-      if (result.ongoing.length > 0 && !selectedRoomId) {
-        const firstRoomId = result.ongoing[0].roomId;
-        setSelectedRoomId(firstRoomId);
-      }
-      return result;
-    } catch (error) {
-      console.error("Error in fetchAllChats:", error);
-      throw error;
-    }
+    return adminStore.user || customerCareStore.user;
   };
 
-  const fetchChatHistory = async (
-    socketInstance: ReturnType<typeof createSocket>,
-    roomId: string
-  ) => {
-    try {
-      console.log("Fetching chat history for room:", roomId);
-      const result = await chatSocket.getChatHistory(socketInstance, roomId);
-      console.log("Successfully fetched chat history:", result);
+  const currentUser = getCurrentUser();
 
-      // Only update chat history for the current room
-      if (roomId === selectedRoomId) {
-        setChatHistory((prev) => {
-          // Keep temporary messages for the current room
-          const tempMessages = prev.filter(
-            (msg) => msg.roomId === roomId && msg.id.startsWith("temp-")
-          );
-          return [...result.messages, ...tempMessages];
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching chat history:", error);
-    }
-  };
-
-  const handleSearch = async (query: string) => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    if (!query.trim()) {
-      setSearchResults([]);
-      setShowSearchResults(false);
-      return;
-    }
-
-    searchTimeoutRef.current = setTimeout(async () => {
-      try {
-        setIsSearching(true);
-        const response = await userSearchService.searchUsers(query);
-        setSearchResults(response.data.results);
-        setShowSearchResults(true);
-      } catch (error) {
-        console.error("Error searching users:", error);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-  };
-
-  const handleStartChat = async (user: UserSearchResult) => {
-    if (!socket) return;
-
-    try {
-      console.log("Starting chat with user:", user.id);
-      const chatResponse = await chatSocket.startChat(
-        socket,
-        user.id,
-        "SUPPORT"
-      );
-      console.log("Chat started:", chatResponse);
-
-      // Set the new room as selected
-      setSelectedRoomId(chatResponse.dbRoomId);
-
-      // Clear search
-      setSearchQuery("");
-      setSearchResults([]);
-      setShowSearchResults(false);
-
-      // Fetch chat history for the new room
-      await fetchChatHistory(socket, chatResponse.dbRoomId);
-
-      // Refresh all chats to show the new chat
-      await fetchAllChats(socket);
-    } catch (error) {
-      console.error("Error starting chat:", error);
-    }
-  };
-
+  // Socket initialization and event handlers
   useEffect(() => {
-    console.log("Component mounted, initializing socket...");
     const token = getAccessToken();
     if (!token) {
       console.error("No token provided, skipping socket connection");
+      setIsLoading(false);
       return;
     }
 
+    console.log("Initializing support chat socket...");
     const newSocket = createSocket(token);
     setSocket(newSocket);
 
     const handleConnect = () => {
-      console.log("Socket connected in component");
-      fetchAllChats(newSocket);
+      console.log("Support chat socket connected");
+      console.log("Socket connected:", newSocket.connected);
+      setIsConnected(true);
+      setIsLoading(false);
+
+      console.log("Current user:", currentUser);
+      console.log("User logged_in_as:", currentUser?.logged_in_as);
+
+      // Auto-register as agent if user is customer care or admin
+      if (
+        currentUser?.logged_in_as === "CUSTOMER_CARE_REPRESENTATIVE" ||
+        currentUser?.logged_in_as === "SUPER_ADMIN" ||
+        currentUser?.logged_in_as === "COMPANION_ADMIN" ||
+        currentUser?.logged_in_as === "FINANCE_ADMIN"
+      ) {
+        console.log("User qualifies for agent registration, registering...");
+        registerAsAgent(newSocket);
+      } else {
+        console.log("User does not qualify for agent registration");
+      }
     };
 
     const handleDisconnect = () => {
-      console.log("Socket disconnected in component");
+      console.log("Support chat socket disconnected");
+      setIsConnected(false);
     };
 
+    const handleError = (error: any) => {
+      console.error("Support chat socket error:", error);
+      toast({
+        title: "Connection Error",
+        description: "Failed to connect to support chat service",
+        variant: "destructive",
+      });
+    };
+
+    // Support-specific event handlers
+    const handleAgentRegistered = (data: any) => {
+      console.log("Agent registered:", data);
+      setIsAgentRegistered(true);
+
+      // Set agent profile if provided
+      if (data.agent) {
+        setAgentProfile(data.agent);
+      } else {
+        // Create a basic agent profile from the registration data
+        setAgentProfile({
+          id: currentUser?.id || "agent",
+          name:
+            `${currentUser?.first_name || ""} ${
+              currentUser?.last_name || ""
+            }`.trim() || "Agent",
+          email: currentUser?.email || "",
+          skills: ["general-support", "technical-support"],
+          languages: ["en"],
+          maxSessions: 5,
+          specializations: ["customer-service"],
+          tier: "tier1",
+        });
+      }
+
+      toast({
+        title: "Agent Registered",
+        description: "You are now registered as a support agent",
+      });
+    };
+
+    const handleAgentStatusChanged = (data: any) => {
+      console.log("Agent status changed:", data);
+      setIsAgentAvailable(data.status === "available");
+      toast({
+        title: "Status Updated",
+        description: `You are now ${data.status}`,
+      });
+    };
+
+    const handleNewCustomerAssigned = (data: any) => {
+      console.log("New customer assigned:", data);
+
+      // Create new session from assignment
+      const newSession: SupportSession = {
+        sessionId: data.sessionId,
+        userId: data.customerId,
+        userType: data.customerType,
+        chatMode: "human",
+        status: "assigned",
+        priority: data.priority || "medium",
+        category: data.category,
+        agentId: currentUser?.id,
+        startTime: new Date().toISOString(),
+        lastActivity: new Date().toISOString(),
+        customerProfile: {
+          id: data.customerId,
+          name: "Customer", // Will be updated with real data
+          userType: data.customerType,
+        },
+      };
+
+      setActiveSessions((prev) => [...prev, newSession]);
+
+      // Auto-select if no session is currently selected
+      if (!selectedSession) {
+        setSelectedSession(newSession);
+      }
+
+      toast({
+        title: "New Customer Assigned",
+        description: data.message || "A new customer has been assigned to you",
+      });
+    };
+
+    const handleCustomerMessage = (data: any) => {
+      console.log("Customer message received:", data);
+
+      const message: SupportMessage = {
+        id: `msg-${Date.now()}`,
+        sessionId: data.sessionId,
+        senderId: data.customerId,
+        senderType: data.customerType,
+        content: data.message,
+        messageType: data.messageType || "text",
+        timestamp: data.timestamp,
+        metadata: data.metadata,
+      };
+
+      // Add message to current session if it matches
+      if (selectedSession?.sessionId === data.sessionId) {
+        setSessionMessages((prev) => [...prev, message]);
+      }
+
+      // Update last activity for the session
+      setActiveSessions((prev) =>
+        prev.map((session) =>
+          session.sessionId === data.sessionId
+            ? { ...session, lastActivity: data.timestamp }
+            : session
+        )
+      );
+    };
+
+    const handleSupportChatStarted = (data: any) => {
+      console.log("Support chat started:", data);
+      // This would be for when we start a chat with a customer
+    };
+
+    const handleQueueUpdate = (data: any) => {
+      console.log("Queue update:", data);
+      toast({
+        title: "Queue Update",
+        description: data.message,
+      });
+    };
+
+    const handleAgentMessageSent = (data: any) => {
+      console.log("Agent message sent confirmation:", data);
+
+      // Remove temporary flag from the message
+      setSessionMessages((prev) =>
+        prev.map((msg) =>
+          msg.sessionId === data.sessionId && msg.isTemporary
+            ? { ...msg, isTemporary: false }
+            : msg
+        )
+      );
+    };
+
+    // Set up event listeners
     newSocket.on("connect", handleConnect);
     newSocket.on("disconnect", handleDisconnect);
-    newSocket.on("error", (error) => {
-      console.error("Socket server error:", error);
-    });
+    newSocket.on("error", handleError);
+    newSocket.on("agentRegistered", handleAgentRegistered);
+    newSocket.on("agentStatusChanged", handleAgentStatusChanged);
+    newSocket.on("newCustomerAssigned", handleNewCustomerAssigned);
+    newSocket.on("customerMessage", handleCustomerMessage);
+    newSocket.on("supportChatStarted", handleSupportChatStarted);
+    newSocket.on("queueUpdate", handleQueueUpdate);
+    newSocket.on("agentMessageSent", handleAgentMessageSent);
 
     if (newSocket.connected) {
-      console.log("Socket already connected, fetching chats...");
-      fetchAllChats(newSocket);
+      handleConnect();
     }
 
     return () => {
-      console.log("Component unmounting, cleaning up socket...");
+      console.log("Cleaning up support chat socket...");
       newSocket.off("connect", handleConnect);
       newSocket.off("disconnect", handleDisconnect);
-      newSocket.off("error");
+      newSocket.off("error", handleError);
+      newSocket.off("agentRegistered", handleAgentRegistered);
+      newSocket.off("agentStatusChanged", handleAgentStatusChanged);
+      newSocket.off("newCustomerAssigned", handleNewCustomerAssigned);
+      newSocket.off("customerMessage", handleCustomerMessage);
+      newSocket.off("supportChatStarted", handleSupportChatStarted);
+      newSocket.off("queueUpdate", handleQueueUpdate);
+      newSocket.off("agentMessageSent", handleAgentMessageSent);
       newSocket.disconnect();
     };
-  }, []);
+  }, [currentUser, selectedSession]);
 
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [sessionMessages]);
+
+  // Agent registration
+  const registerAsAgent = async (
+    socketInstance?: ReturnType<typeof createSocket>
+  ) => {
+    const activeSocket = socketInstance || socket;
+
+    if (!activeSocket || !currentUser) {
+      console.log("Cannot register agent - missing socket or user:", {
+        socket: !!activeSocket,
+        currentUser: !!currentUser,
+        socketState: !!socket,
+        socketInstanceParam: !!socketInstance,
+      });
+      return;
+    }
+
+    try {
+      console.log("Starting agent registration...");
+      console.log("Socket connected:", activeSocket.connected);
+      console.log("Socket ID:", activeSocket.id);
+
+      // First, try to register without waiting for response to see if the event goes through
+      activeSocket.emit("agentRegister", {
+        skills: ["general-support", "technical-support"],
+        languages: ["en"],
+        maxSessions: 5,
+        specializations: ["customer-service"],
+        tier: "tier1",
+      });
+
+      console.log("Agent registration event emitted");
+
+      // Set a temporary registered state to enable the toggle
+      // This will be confirmed by the actual response
+      setTimeout(() => {
+        if (!isAgentRegistered) {
+          console.log(
+            "No registration response received, setting temporary registration"
+          );
+          setIsAgentRegistered(true);
+          setAgentProfile({
+            id: currentUser?.id || "agent",
+            name:
+              `${currentUser?.first_name || ""} ${
+                currentUser?.last_name || ""
+              }`.trim() || "Agent",
+            email: currentUser?.email || "",
+            skills: ["general-support", "technical-support"],
+            languages: ["en"],
+            maxSessions: 5,
+            specializations: ["customer-service"],
+            tier: "tier1",
+          });
+          toast({
+            title: "Agent Registration",
+            description: "Registered as support agent (local mode)",
+          });
+        }
+      }, 3000); // Wait 3 seconds for server response
+    } catch (error) {
+      console.error("Error registering as agent:", error);
+      toast({
+        title: "Registration Failed",
+        description: "Failed to register as support agent",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Toggle agent availability
+  const toggleAgentAvailability = async () => {
     if (!socket) return;
 
-    console.log("Setting up message listener with socket:", socket.id);
-
-    const handleNewMessage = (message: ChatMessage) => {
-      console.log("New message received in handler:", message);
-
-      // Always fetch all chats to update the chat list
-      fetchAllChats(socket);
-
-      // Only update chat history if it's the current room
-      if (message.roomId === selectedRoomId) {
-        console.log("Updating chat history for current room:", selectedRoomId);
-        const normalizedContent = message.content.normalize("NFC");
-
-        // Update pending messages
-        setPendingMessages((prev) => {
-          const updatedPending = prev.filter(
-            (pending) =>
-              !(
-                pending.content.normalize("NFC") === normalizedContent &&
-                pending.roomId === message.roomId
-              )
-          );
-          return updatedPending;
-        });
-
-        // Update chat history
-        setChatHistory((prev) => {
-          const updatedHistory = prev.filter(
-            (msg) =>
-              !(
-                msg.content.normalize("NFC") === normalizedContent &&
-                msg.roomId === message.roomId &&
-                msg.senderType === "CUSTOMER_CARE_REPRESENTATIVE" &&
-                msg.id.startsWith("temp-")
-              )
-          );
-          return [...updatedHistory, message];
-        });
+    try {
+      if (isAgentAvailable) {
+        socket.emit("agentUnavailable", { reason: "Manual toggle" });
+      } else {
+        socket.emit("agentAvailable");
       }
-    };
-
-    chatSocket.onNewMessage(socket, handleNewMessage);
-
-    return () => {
-      console.log("Cleaning up message listener");
-      socket.off("newMessage");
-    };
-  }, [socket, selectedRoomId]);
-
-  useEffect(() => {
-    if (selectedRoomId && socket) {
-      fetchChatHistory(socket, selectedRoomId);
+    } catch (error) {
+      console.error("Error toggling availability:", error);
+      toast({
+        title: "Status Update Failed",
+        description: "Failed to update availability status",
+        variant: "destructive",
+      });
     }
-  }, [selectedRoomId, socket]);
-
-  // Cleanup search timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Handle click outside to close search results
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        searchContainerRef.current &&
-        !searchContainerRef.current.contains(event.target as Node)
-      ) {
-        setShowSearchResults(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  const getSenderName = (message: ChatMessage) => {
-    if (message.customerSender) {
-      return `${message.customerSender.first_name} ${message.customerSender.last_name}`;
-    } else if (message.driverSender) {
-      return `${message.driverSender.first_name} ${message.driverSender.last_name}`;
-    } else if (message.restaurantSender) {
-      return message.restaurantSender.restaurant_name;
-    } else if (message.customerCareSender) {
-      return `${message.customerCareSender.first_name} ${message.customerCareSender.last_name}`;
-    }
-    return "Unknown";
   };
 
-  const getSenderAvatar = (message: ChatMessage | Message) => {
-    if (message.customerSender && message.customerSender.avatar) {
-      return message.customerSender.avatar.url;
-    } else if (message.driverSender && message.driverSender.avatar) {
-      return message.driverSender.avatar.url;
-    } else if (message.restaurantSender && message.restaurantSender.avatar) {
-      return message.restaurantSender.avatar.url;
-    } else if (
-      message.customerCareSender &&
-      message.customerCareSender.avatar
-    ) {
-      return message.customerCareSender.avatar.url;
-    }
-    return "";
-  };
-
-  const isCurrentUser = (message: ChatMessage) => {
-    return message.senderType === "CUSTOMER_CARE_REPRESENTATIVE";
-  };
-
-  const getParticipantName = (chat: ChatRoom) => {
-    const participant = chat.otherParticipant;
-    if (!participant) return "Unknown";
-    if (participant.restaurant_name) {
-      return participant.restaurant_name;
-    }
-    return (
-      `${participant.first_name || ""} ${participant.last_name || ""}`.trim() ||
-      "Unknown"
-    );
-  };
-
-  const getParticipantAvatar = (chat: ChatRoom) => {
-    return chat.otherParticipant?.avatar?.url || "";
-  };
-
-  const selectedChat =
-    chats.ongoing.find((chat) => chat.roomId === selectedRoomId) ||
-    chats.awaiting.find((chat) => chat.roomId === selectedRoomId);
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [chatHistory]);
-
+  // Send message to customer
   const handleSendMessage = async () => {
-    if (message.trim() && selectedRoomId && socket) {
-      try {
-        const tempMessage: ChatMessage = {
-          id: `temp-${Date.now()}`,
-          roomId: selectedRoomId,
-          senderId: "current-user",
-          senderType: "CUSTOMER_CARE_REPRESENTATIVE",
-          content: message,
-          messageType: "TEXT",
-          timestamp: new Date().toISOString(),
-          readBy: [],
-          customerSender: null,
-          driverSender: null,
-          restaurantSender: null,
-          customerCareSender: null,
-        };
+    if (!currentMessage.trim() || !selectedSession) {
+      console.log("Cannot send message - missing message or session:", {
+        hasMessage: !!currentMessage.trim(),
+        hasSession: !!selectedSession,
+      });
+      return;
+    }
 
-        setChatHistory((prev) => {
-          const newHistory = [...prev, tempMessage];
-          console.log("Updated chatHistory:", newHistory);
-          return newHistory;
-        });
+    if (!socket) {
+      console.log("Cannot send message - socket not available");
+      toast({
+        title: "Connection Error",
+        description: "Chat connection not available",
+        variant: "destructive",
+      });
+      return;
+    }
 
-        await new Promise((resolve) => {
-          setPendingMessages((prev) => {
-            const newPending = [
-              ...prev,
-              {
-                content: message,
-                roomId: selectedRoomId,
-                timestamp: tempMessage.timestamp,
-              },
-            ];
-            console.log("Updated pendingMessages:", newPending);
-            resolve(newPending);
-            return newPending;
-          });
-        });
+    if (!socket.connected) {
+      console.log("Cannot send message - socket not connected");
+      toast({
+        title: "Connection Error",
+        description: "Chat connection lost",
+        variant: "destructive",
+      });
+      return;
+    }
 
-        setMessage("");
+    const messageContent = currentMessage; // Store before clearing
 
-        await chatSocket.sendMessage(socket, selectedRoomId, message, "TEXT");
+    try {
+      console.log("Sending agent message:", {
+        sessionId: selectedSession.sessionId,
+        message: messageContent,
+        socketConnected: socket.connected,
+      });
 
-        // Timeout to clear pending message if no server response
-        setTimeout(() => {
-          setPendingMessages((prev) =>
-            prev.filter(
-              (pending) =>
-                !(
-                  pending.content === message &&
-                  pending.roomId === selectedRoomId
-                )
-            )
-          );
-        }, 10000);
+      const tempMessage: SupportMessage = {
+        id: `temp-${Date.now()}`,
+        sessionId: selectedSession.sessionId,
+        senderId: currentUser?.id || "agent",
+        senderType: "CUSTOMER_CARE_REPRESENTATIVE",
+        content: messageContent,
+        messageType: "text",
+        timestamp: new Date().toISOString(),
+        isTemporary: true,
+      };
 
-        await fetchAllChats(socket);
-      } catch (error) {
-        console.error("Error sending message:", error);
-        setChatHistory((prev) =>
-          prev.filter(
-            (msg) =>
-              !(
-                msg.content === message &&
-                msg.roomId === selectedRoomId &&
-                msg.senderType === "CUSTOMER_CARE_REPRESENTATIVE" &&
-                msg.id.startsWith("temp-")
-              )
+      // Add message to UI immediately
+      setSessionMessages((prev) => [...prev, tempMessage]);
+      setCurrentMessage("");
+
+      // Send via socket with proper error handling
+      socket.emit("sendAgentMessage", {
+        sessionId: selectedSession.sessionId,
+        message: messageContent,
+        messageType: "text",
+      });
+
+      console.log("Agent message event emitted successfully");
+
+      // Set a timeout to remove temp message if no confirmation received
+      setTimeout(() => {
+        setSessionMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempMessage.id
+              ? { ...msg, isTemporary: false } // Mark as sent even if no server confirmation
+              : msg
           )
         );
-        setPendingMessages((prev) =>
-          prev.filter(
-            (pending) =>
-              !(
-                pending.content === message && pending.roomId === selectedRoomId
-              )
-          )
-        );
-      }
+      }, 5000); // 5 seconds timeout
+    } catch (error) {
+      console.error("Error sending message:", error);
+
+      // Remove the temporary message on error
+      setSessionMessages((prev) =>
+        prev.filter(
+          (msg) => msg.id.startsWith("temp-") && msg.content === messageContent
+        )
+      );
+
+      // Restore the message content
+      setCurrentMessage(messageContent);
+
+      toast({
+        title: "Send Failed",
+        description: "Failed to send message",
+        variant: "destructive",
+      });
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
       handleSendMessage();
     }
   };
 
-  const isMessagePending = (msg: ChatMessage) => {
-    return (
-      msg.senderType === "CUSTOMER_CARE_REPRESENTATIVE" &&
-      msg.id.startsWith("temp-") &&
-      pendingMessages.some(
-        (pending) =>
-          pending.content.normalize("NFC") === msg.content.normalize("NFC") &&
-          pending.roomId === msg.roomId
-      )
-    );
+  // Filter sessions based on search and filters
+  const filteredSessions = activeSessions.filter((session) => {
+    const matchesSearch =
+      !searchQuery ||
+      session.customerProfile?.name
+        ?.toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      session.sessionId.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCategory =
+      selectedCategory === "all" || session.category === selectedCategory;
+    const matchesPriority =
+      selectedPriority === "all" || session.priority === selectedPriority;
+
+    return matchesSearch && matchesCategory && matchesPriority;
+  });
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "urgent":
+        return "bg-red-500";
+      case "high":
+        return "bg-orange-500";
+      case "medium":
+        return "bg-yellow-500";
+      case "low":
+        return "bg-green-500";
+      default:
+        return "bg-gray-500";
+    }
   };
 
-  return (
-    <div className="flex overflow-hidden py-2">
-      <div className="w-1/3 max-h-[calc(100vh-7rem)] border-r border-gray-200 pr-4 overflow-y-auto">
-        <div className="relative mb-4" ref={searchContainerRef}>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search users to start chat..."
-              className="pl-10 pr-10 bg-white focus-visible:ring-0"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                handleSearch(e.target.value);
-              }}
-            />
-            {searchQuery && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                onClick={() => {
-                  setSearchQuery("");
-                  setSearchResults([]);
-                  setShowSearchResults(false);
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "active":
+        return <MessageCircle className="h-4 w-4 text-green-500" />;
+      case "waiting":
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+      case "assigned":
+        return <UserCheck className="h-4 w-4 text-blue-500" />;
+      case "ended":
+        return <CheckCircle className="h-4 w-4 text-gray-500" />;
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-500" />;
+    }
+  };
 
-          {/* Search Results Dropdown */}
-          {showSearchResults && (
-            <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
-              {isSearching ? (
-                <div className="p-3 text-center text-gray-500">
-                  <div className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
-                  <span className="ml-2">Searching...</span>
-                </div>
-              ) : searchResults.length > 0 ? (
-                searchResults.map((user) => (
-                  <div
-                    key={user.id}
-                    className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                    onClick={() => handleStartChat(user)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage
-                          src={user.avatar?.url}
-                          alt={`${user.first_name || ""} ${
-                            user.last_name || ""
-                          }`}
-                        />
-                        <AvatarFallback className="text-xs">
-                          {(user.first_name?.[0] || "") +
-                            (user.last_name?.[0] || "U")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">
-                          {user.first_name || ""} {user.last_name || ""}
-                          {!user.first_name &&
-                            !user.last_name &&
-                            (user.restaurant_name ? (
-                              <span className="text-gray-500">
-                                {user.restaurant_name}
-                              </span>
-                            ) : (
-                              <span className="text-gray-500">
-                                Unknown User
-                              </span>
-                            ))}
-                        </div>
-                        <div className="text-xs text-gray-500 capitalize">
-                          {user.type.replace("_", " ")}
-                        </div>
-                        {user.user_email && (
-                          <div className="text-xs text-gray-400">
-                            {user.user_email}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Connecting to support chat...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isConnected) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-600">
+            Failed to connect to support chat service
+          </p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Retry Connection
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-8rem)] overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-1/3 border-r border-gray-200 flex flex-col">
+        {/* Agent Status Panel */}
+        <Card className="m-4 mb-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>Agent Status</span>
+              {isConnected ? (
+                <Badge
+                  variant="outline"
+                  className="text-green-600 border-green-600"
+                >
+                  Connected
+                </Badge>
               ) : (
-                <div className="p-3 text-center text-gray-500 text-sm">
-                  No users found
+                <Badge
+                  variant="outline"
+                  className="text-red-600 border-red-600"
+                >
+                  Disconnected
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Available</span>
+                <Switch
+                  checked={isAgentAvailable}
+                  onCheckedChange={toggleAgentAvailability}
+                  disabled={!isAgentRegistered}
+                />
+              </div>
+
+              {agentMetrics && (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-gray-500">Active: </span>
+                    <span className="font-medium">
+                      {agentMetrics.activeSessions}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Today: </span>
+                    <span className="font-medium">
+                      {agentMetrics.totalSessionsToday}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
-          )}
-        </div>
-        <div className="flex-col mb-4 bg-white rounded-lg shadow-md p-4">
-          <h2 className="text-lg font-semibold mb-2 bg-white">Ongoing chats</h2>
-          <div className="space-y-2">
-            {chats.ongoing.map((chat) => (
-              <div
-                key={chat.roomId}
-                className={`flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer ${
-                  selectedRoomId === chat.roomId ? "bg-gray-100" : ""
-                }`}
-                onClick={() => setSelectedRoomId(chat.roomId)}
-              >
-                <Avatar>
-                  <AvatarImage
-                    src={getParticipantAvatar(chat)}
-                    alt={getParticipantName(chat)}
-                  />
-                  <AvatarFallback>
-                    {getParticipantName(chat)[0] || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="flex justify-between">
-                    <span className="font-medium text-sm">
-                      {getParticipantName(chat)}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {chat.lastMessage
-                        ? formatDateToRelativeTime(chat.lastMessage.timestamp)
-                        : "No messages"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-xs leading-3 text-gray-600">
-                      {chat.lastMessage
-                        ? limitCharacters(chat.lastMessage.content, 16)
-                        : "No messages yet"}
-                    </span>
-                    {/* {chat.lastMessage?.readBy?.length === 1 && (
-                      <Badge className="bg-danger-500 h-5 text-white">1</Badge>
-                    )} */}
-                  </div>
-                </div>
-              </div>
-            ))}
+          </CardContent>
+        </Card>
+
+        {/* Search and Filters */}
+        <div className="px-4 space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search sessions..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <div className="flex space-x-2">
+            <Select
+              value={selectedCategory}
+              onValueChange={setSelectedCategory}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="technical">Technical</SelectItem>
+                <SelectItem value="billing">Billing</SelectItem>
+                <SelectItem value="general">General</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={selectedPriority}
+              onValueChange={setSelectedPriority}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
-        <div className="flex-col bg-white rounded-lg shadow-md p-4">
-          <h2 className="text-lg font-semibold mt-4 mb-2 bg-white">
-            Waiting list
-          </h2>
+
+        {/* Active Sessions List */}
+        <div className="flex-1 overflow-y-auto px-4 py-2">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">
+            Active Sessions ({filteredSessions.length})
+          </h3>
+
           <div className="space-y-2">
-            {chats.awaiting.map((chat) => (
-              <div
-                key={chat.roomId}
-                className={`flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer ${
-                  selectedRoomId === chat.roomId ? "bg-gray-100" : ""
+            {filteredSessions.map((session) => (
+              <Card
+                key={session.sessionId}
+                className={`cursor-pointer transition-colors ${
+                  selectedSession?.sessionId === session.sessionId
+                    ? "border-primary bg-primary/5"
+                    : "hover:bg-gray-50"
                 }`}
-                onClick={() => setSelectedRoomId(chat.roomId)}
+                onClick={() => setSelectedSession(session)}
               >
-                <Avatar>
-                  <AvatarImage
-                    src={getParticipantAvatar(chat)}
-                    alt={getParticipantName(chat)}
-                  />
-                  <AvatarFallback>
-                    {getParticipantName(chat)[0] || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="flex justify-between">
-                    <span className="font-medium">
-                      {getParticipantName(chat)}
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={session.customerProfile?.avatar} />
+                        <AvatarFallback className="text-xs">
+                          {session.customerProfile?.name?.[0] || "C"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium">
+                        {session.customerProfile?.name ||
+                          `User ${session.userId.slice(-4)}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      {getStatusIcon(session.status)}
+                      <div
+                        className={`w-2 h-2 rounded-full ${getPriorityColor(
+                          session.priority
+                        )}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span className="capitalize">
+                      {session.userType.replace("_", " ")}
                     </span>
-                    <span className="text-sm text-gray-500">
-                      {chat.lastMessage
-                        ? formatDateToRelativeTime(chat.lastMessage.timestamp)
-                        : "No messages"}
+                    <span>
+                      {formatDateToRelativeTime(session.lastActivity)}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">
-                      {chat.lastMessage
-                        ? chat.lastMessage.content
-                        : "No messages yet"}
-                    </span>
-                    {/* {chat.lastMessage?.readBy?.length === 1 && (
-                      <Badge className="bg-danger-500 h-4 text-white">1</Badge>
-                    )} */}
-                  </div>
-                </div>
-              </div>
+
+                  {session.category && (
+                    <Badge variant="outline" className="text-xs mt-1">
+                      {session.category}
+                    </Badge>
+                  )}
+                </CardContent>
+              </Card>
             ))}
+
+            {filteredSessions.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No active sessions</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="border-b border-gray-200 p-4 py-2  flex items-center justify-between">
-          <div className="flex items-center  space-x-3">
-            <div
-              className={`z-1 w-10 h-10  rounded-full`}
-              style={{
-                backgroundImage: `url(${
-                  selectedChat ? getParticipantAvatar(selectedChat) : ""
-                })`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            >
-              {/* <div className="w-full h-full bg-red-300 rounded-full"></div> */}
-            </div>
-            <div className="">
-              <h2 className="font-semibold">
-                {selectedChat ? getParticipantName(selectedChat) : "User"}
-              </h2>
-            </div>
-          </div>
-          <div className="flex space-x-2">
-            <Button variant="ghost" size="icon">
-              <Phone className="h-5 w-5 text-gray-500" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <Video className="h-5 w-5 text-gray-500" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-5 w-5 text-gray-500" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="max-h-[calc(100vh-14rem)] bg-gray-50 p-4 overflow-y-auto ">
-          {chatHistory.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${
-                isCurrentUser(msg) ? "justify-end" : "justify-start"
-              } mb-4`}
-            >
-              {!isCurrentUser(msg) && (
-                <Avatar className="mr-2 mt-1">
-                  <AvatarImage
-                    src={getSenderAvatar(msg)}
-                    alt={getSenderName(msg)}
-                  />
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {selectedSession ? (
+          <>
+            {/* Chat Header */}
+            <div className="border-b border-gray-200 p-4 flex items-center justify-between bg-white">
+              <div className="flex items-center space-x-3">
+                <Avatar>
+                  <AvatarImage src={selectedSession.customerProfile?.avatar} />
                   <AvatarFallback>
-                    {getSenderName(msg)[0] || "U"}
+                    {selectedSession.customerProfile?.name?.[0] || "C"}
                   </AvatarFallback>
                 </Avatar>
-              )}
-              <div
-                className={`max-w-xs p-3 rounded-lg ${
-                  isCurrentUser(msg)
-                    ? "bg-primary text-white"
-                    : "bg-gray-200 text-gray-800"
-                }`}
-              >
-                <p>{msg.content}</p>
-                <div className="flex justify-between items-center">
-                  <p
-                    className={`text-xs mt-1 ${
-                      isCurrentUser(msg) ? "text-white/70" : "text-gray-500"
-                    }`}
-                  >
-                    {formatDateToRelativeTime(msg.timestamp)}
-                  </p>
-                  {isCurrentUser(msg) && isMessagePending(msg) && (
-                    <p className="text-xs mt-1 ml-2 text-yellow-300">
-                      sending...
-                    </p>
-                  )}
+                <div>
+                  <h2 className="font-semibold">
+                    {selectedSession.customerProfile?.name ||
+                      `User ${selectedSession.userId.slice(-4)}`}
+                  </h2>
+                  <div className="flex items-center space-x-2 text-sm text-gray-500">
+                    <span className="capitalize">
+                      {selectedSession.userType.replace("_", " ")}
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center space-x-1">
+                      {selectedSession.chatMode === "bot" ? (
+                        <Bot className="h-3 w-3" />
+                      ) : (
+                        <User className="h-3 w-3" />
+                      )}
+                      <span>
+                        {selectedSession.chatMode === "bot"
+                          ? "Bot Mode"
+                          : "Human Mode"}
+                      </span>
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-          <div ref={chatEndRef} />
-        </div>
 
-        <div className="bg-white border-t border-gray-200 p-4 py-2 flex items-center space-x-2">
-          <Button variant="ghost" size="icon">
-            <Paperclip className="h-5 w-5 text-gray-500" />
-          </Button>
-          <Input
-            placeholder="Type your message here..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="flex-1"
-          />
-          <Button variant="ghost" size="icon">
-            <Smile className="h-5 w-5 text-gray-500" />
-          </Button>
-          <Button variant="ghost" size="icon">
-            <Camera className="h-5 w-5 text-gray-500" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="bg-primary"
-            onClick={handleSendMessage}
-          >
-            <Send className="h-5 w-5 text-white" />
-          </Button>
-        </div>
+              <div className="flex items-center space-x-2">
+                <Badge className={getPriorityColor(selectedSession.priority)}>
+                  {selectedSession.priority}
+                </Badge>
+                <Button variant="ghost" size="icon">
+                  <Phone className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon">
+                  <Video className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+              <div className="space-y-4">
+                {sessionMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${
+                      message.senderType === "CUSTOMER_CARE_REPRESENTATIVE"
+                        ? "justify-end"
+                        : "justify-start"
+                    }`}
+                  >
+                    {message.senderType !== "CUSTOMER_CARE_REPRESENTATIVE" && (
+                      <Avatar className="mr-2 mt-1 h-8 w-8">
+                        <AvatarFallback className="text-xs">
+                          {message.senderType === "BOT" ? "🤖" : "C"}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+
+                    <div
+                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                        message.senderType === "CUSTOMER_CARE_REPRESENTATIVE"
+                          ? "bg-primary text-white"
+                          : message.senderType === "BOT"
+                          ? "bg-blue-100 text-blue-900"
+                          : "bg-white text-gray-900"
+                      }`}
+                    >
+                      <p className="text-sm">{message.content}</p>
+
+                      {message.options && (
+                        <div className="mt-2 space-y-1">
+                          {message.options.map((option, index) => (
+                            <Button
+                              key={index}
+                              variant="outline"
+                              size="sm"
+                              className="w-full text-xs"
+                              onClick={() => {
+                                // Handle option click
+                                setCurrentMessage(option.text);
+                              }}
+                            >
+                              {option.text}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+
+                      {message.queueInfo && (
+                        <div className="mt-2 text-xs opacity-75">
+                          Position: {message.queueInfo.position} | Wait:{" "}
+                          {message.queueInfo.estimatedWaitTime}m
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-xs opacity-75">
+                          {formatDateToRelativeTime(message.timestamp)}
+                        </span>
+                        {message.agentName && (
+                          <span className="text-xs opacity-75">
+                            {message.agentName}
+                          </span>
+                        )}
+                        {message.isTemporary && (
+                          <span className="text-xs opacity-75 text-yellow-300">
+                            sending...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+
+            {/* Message Input */}
+            <div className="border-t border-gray-200 p-4 bg-white">
+              <div className="flex items-center space-x-2">
+                <Button variant="ghost" size="icon">
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+                <Input
+                  placeholder="Type your message..."
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="flex-1"
+                />
+                <Button variant="ghost" size="icon">
+                  <Smile className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!currentMessage.trim()}
+                  className="bg-primary"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+              <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Welcome to Support Chat
+              </h3>
+              <p className="text-gray-500 mb-4">
+                {isAgentRegistered
+                  ? isAgentAvailable
+                    ? "You're available to receive customer support requests"
+                    : "Set yourself as available to start receiving support requests"
+                  : "Registering as support agent..."}
+              </p>
+              {isAgentRegistered && !isAgentAvailable && (
+                <Button onClick={toggleAgentAvailability}>Set Available</Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

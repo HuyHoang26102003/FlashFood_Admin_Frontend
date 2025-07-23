@@ -34,6 +34,7 @@ import {
   Reply,
   FileText,
   Package,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CreateGroupDialog from "@/components/AdminChat/CreateGroupDialog";
@@ -301,6 +302,7 @@ export default function InternalChatPage() {
   useEffect(() => {
     if (!currentUser?.accessToken) {
       console.log("No user token available");
+      setIsLoading(false);
       return;
     }
 
@@ -759,6 +761,17 @@ export default function InternalChatPage() {
           console.log("Socket disconnected");
           setIsConnected(false);
         });
+
+        socket.on("connect_error", (err) => {
+          console.error("Socket connection error:", err.message);
+          toast({
+            title: "Connection Error",
+            description: "Unable to connect to chat service.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          setIsConnected(false);
+        });
       } catch (error) {
         console.error("Error initializing socket:", error);
         setIsLoading(false);
@@ -1076,7 +1089,7 @@ export default function InternalChatPage() {
     console.log("cehck fetch here");
   }, []);
 
-  if (isLoading) {
+  if (isLoading || isMessagesLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
@@ -1819,7 +1832,7 @@ export default function InternalChatPage() {
                   className="px-4"
                 >
                   {isSendingMessage ? (
-                    <Spinner isVisible isOverlay />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Send className="h-4 w-4" />
                   )}

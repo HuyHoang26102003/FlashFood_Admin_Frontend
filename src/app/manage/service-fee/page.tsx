@@ -125,9 +125,11 @@ const FinanceRulePage = () => {
           ...selectedRule,
           id: undefined,
           created_at: undefined,
-          updated_at: selectedRule?.updated_at ? +selectedRule?.updated_at : undefined,
+          updated_at: selectedRule?.updated_at
+            ? +selectedRule?.updated_at
+            : undefined,
           created_by: undefined,
-          customer_care_hourly_wage: +selectedRule.customer_care_hourly_wage
+          customer_care_hourly_wage: +selectedRule.customer_care_hourly_wage,
         }
       );
       const { EC } = response.data;
@@ -308,7 +310,14 @@ const FinanceRulePage = () => {
         const createdBy = row.getValue(
           "created_by"
         ) as FinanceRule["created_by"];
-        return <div>{`${createdBy?.last_name} ${createdBy?.first_name}`}</div>;
+        console.log(createdBy);
+        return (
+          <div>
+            {createdBy?.first_name
+              ? `${createdBy?.last_name} ${createdBy?.first_name}`
+              : "N/A"}
+          </div>
+        );
       },
     },
     {
