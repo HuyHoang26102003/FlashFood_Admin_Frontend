@@ -68,6 +68,7 @@ interface Notification {
 }
 
 interface BroadcastNotification {
+  avatar: Avatar;
   target_user: string[];
   created_by_id: string;
   content: {
@@ -144,10 +145,10 @@ const Page = () => {
       const response = await axiosInstance.patch(
         `/notifications/${selectedNotification.id}`,
         {
-          avatar: selectedNotification.avatar,
+          avatar: { url: selectedNotification.avatar.url, key: "abc" },
           title: selectedNotification.title,
           desc: selectedNotification.desc,
-          image: selectedNotification.image, // Gửi object { url, key }
+          image: selectedNotification.image?.url, // Gửi URL của image
           link: selectedNotification.link,
           target_user: selectedNotification.target_user,
         }
@@ -182,7 +183,10 @@ const Page = () => {
 
     try {
       // Tạo bản sao của newBroadcast
-      const updatedBroadcast = { ...newBroadcast };
+      const updatedBroadcast = {
+        ...newBroadcast,
+        avatar: { url: newBroadcast.avatar.url, key: "abc" },
+      };
 
       // Lọc content để chỉ giữ lại các role trong target_user
       const filteredContent: typeof updatedBroadcast.content = {};
@@ -195,7 +199,8 @@ const Page = () => {
           // Nếu image.url rỗng hoặc không tồn tại, set image thành undefined
           const updatedRoleContent = {
             ...roleContent,
-            image: roleContent.image?.url ? roleContent.image : undefined,
+            avatar: roleContent.avatar?.url || "", // Gửi URL của avatar
+            image: roleContent.image?.url, // Gửi URL của image
             title: roleContent.title || "",
             desc: roleContent.desc || "",
             link: roleContent.link || "",
@@ -320,7 +325,11 @@ const Page = () => {
       });
       const uploadResponse = response.data;
 
-      if (uploadResponse.EC === 0 && uploadResponse.data?.url && uploadResponse.data?.public_id) {
+      if (
+        uploadResponse.EC === 0 &&
+        uploadResponse.data?.url &&
+        uploadResponse.data?.public_id
+      ) {
         const uploadedImage = {
           url: uploadResponse.data.url,
           key: uploadResponse.data.public_id,
@@ -463,9 +472,7 @@ const Page = () => {
         </Button>
       ),
       cell: ({ row }) => (
-        <div>
-          {formatEpochToDate(Number(row.getValue("created_at")))}
-        </div>
+        <div>{formatEpochToDate(Number(row.getValue("created_at")))}</div>
       ),
     },
     {
