@@ -69,6 +69,8 @@ const Page = () => {
   const [openEdit, setOpenEdit] = useState<boolean>(false);
   const [openAdd, setOpenAdd] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const { toast } = useToast();
@@ -119,6 +121,7 @@ const Page = () => {
   // Handle submit chỉnh sửa FAQ
   const handleSaveEdit = async () => {
     if (!selectedFAQ) return;
+    setIsEditing(true);
     try {
       const response = await axiosInstance.patch(`/faqs/${selectedFAQ.id}`, {
         question: selectedFAQ.question,
@@ -149,12 +152,15 @@ const Page = () => {
         description: "An unexpected error occurred.",
         variant: "destructive",
       });
+    } finally {
+      setIsEditing(false);
     }
   };
 
   // Handle submit thêm FAQ mới
   const handleSaveAdd = async () => {
     if (!newFAQ) return;
+    setIsAdding(true);
     try {
       const response = await axiosInstance.post("/faqs", {
         question: newFAQ.question,
@@ -185,6 +191,8 @@ const Page = () => {
         description: "An unexpected error occurred.",
         variant: "destructive",
       });
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -252,33 +260,66 @@ const Page = () => {
     files: FileList,
     isImageRow: boolean
   ) => {
+    if (!files || files.length === 0) {
+      return;
+    }
+    const file = files[0];
     const formData = new FormData();
-    Array.from(files).forEach((file) => formData.append("file", file));
-    formData.append(
-      "upload_preset",
-      `${process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET}`
-    );
+    formData.append("file", file);
 
     try {
-      const response = await axios.post(
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-        formData
-      );
-      const { public_id, secure_url } = response.data;
-      const uploadedImage = { key: public_id, url: secure_url };
+      const response = await axiosInstance.post(`upload/image`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      const uploadResponse = response.data;
 
-      if (isImageRow) {
-        handleAnswerChange(isEdit, index, "value", [
-          ...(Array.isArray(newFAQ?.answer[index].value)
-            ? newFAQ?.answer[index].value
-            : []),
-          uploadedImage,
-        ]);
+      if (
+        uploadResponse.EC === 0 &&
+        uploadResponse.data?.url &&
+        uploadResponse.data?.public_id
+      ) {
+        const uploadedImage = {
+          url: uploadResponse.data.url,
+          key: uploadResponse.data.public_id,
+        };
+
+        if (isImageRow) {
+          const setter = isEdit ? setSelectedFAQ : setNewFAQ;
+          setter((prev) => {
+            if (!prev) return null;
+            const newAnswer = [...prev.answer];
+            const currentAnswerItem = newAnswer[index];
+            const existingImages =
+              Array.isArray(currentAnswerItem.value) &&
+              currentAnswerItem.type === "image_row"
+                ? (currentAnswerItem.value as { key: string; url: string }[])
+                : [];
+            newAnswer[index] = {
+              ...currentAnswerItem,
+              value: [...existingImages, uploadedImage],
+            };
+            return { ...prev, answer: newAnswer };
+          });
+        } else {
+          handleAnswerChange(isEdit, index, "value", uploadedImage);
+        }
       } else {
-        handleAnswerChange(isEdit, index, "value", uploadedImage);
+        console.error("Image upload failed:", uploadResponse.EM);
+        toast({
+          title: "Error",
+          description: "Image upload failed.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error uploading image:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred during image upload.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -670,7 +711,9 @@ const Page = () => {
               <Button variant="outline" onClick={() => setOpenEdit(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSaveEdit}>Save</Button>
+              <Button onClick={handleSaveEdit} disabled={isEditing}>
+                {isEditing ? <Spinner isVisible /> : "Save"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -771,7 +814,9 @@ const Page = () => {
               <Button variant="outline" onClick={() => setOpenAdd(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSaveAdd}>Add</Button>
+              <Button onClick={handleSaveAdd} disabled={isAdding}>
+                {isAdding ? <Spinner isVisible /> : "Add"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

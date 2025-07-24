@@ -34,6 +34,7 @@ import {
   Reply,
   FileText,
   Package,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CreateGroupDialog from "@/components/AdminChat/CreateGroupDialog";
@@ -56,6 +57,7 @@ import GroupSettingsDialog from "@/components/AdminChat/GroupSettingsDialog";
 import OrderReferenceDialog from "@/components/AdminChat/OrderReferenceDialog";
 import OrderHoverContent from "@/components/AdminChat/OrderHoverContent";
 import UserHoverContent from "@/components/AdminChat/UserHoverContent";
+import { Spinner } from "@/components/Spinner";
 
 interface MentionUser {
   userId: string;
@@ -300,6 +302,7 @@ export default function InternalChatPage() {
   useEffect(() => {
     if (!currentUser?.accessToken) {
       console.log("No user token available");
+      setIsLoading(false);
       return;
     }
 
@@ -758,6 +761,17 @@ export default function InternalChatPage() {
           console.log("Socket disconnected");
           setIsConnected(false);
         });
+
+        socket.on("connect_error", (err) => {
+          console.error("Socket connection error:", err.message);
+          toast({
+            title: "Connection Error",
+            description: "Unable to connect to chat service.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          setIsConnected(false);
+        });
       } catch (error) {
         console.error("Error initializing socket:", error);
         setIsLoading(false);
@@ -1075,12 +1089,11 @@ export default function InternalChatPage() {
     console.log("cehck fetch here");
   }, []);
 
-  if (isLoading) {
+  if (isLoading || isMessagesLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading internal chat...</p>
+          <Spinner isVisible isOverlay />
         </div>
       </div>
     );
@@ -1422,7 +1435,7 @@ export default function InternalChatPage() {
               {isMessagesLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <Spinner isVisible isOverlay />
                     <p className="text-gray-600">Loading messages...</p>
                   </div>
                 </div>
@@ -1819,7 +1832,7 @@ export default function InternalChatPage() {
                   className="px-4"
                 >
                   {isSendingMessage ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Send className="h-4 w-4" />
                   )}

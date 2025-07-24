@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useRef } from "react";
-import { Eye, Power, Loader2 } from "lucide-react";
+import { Eye, Power, Loader2, Trash } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -154,6 +154,27 @@ const Page = () => {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isUnbanning, setIsUnbanning] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingRestaurantId, setDeletingRestaurantId] = useState<
+    string | null
+  >(null);
+
+  const handleDeleteRestaurant = (restaurantId: string) => {
+    setDeletingRestaurantId(restaurantId);
+    setIsDeleting(true);
+    setTimeout(() => {
+      setRestaurants((prev) => prev.filter((r) => r.id !== restaurantId));
+      setRestaurantsSearchResult((prev) =>
+        prev.filter((r) => r.id !== restaurantId)
+      );
+      setIsDeleting(false);
+      setDeletingRestaurantId(null);
+      toast({
+        title: "Deleted",
+        description: "The restaurant has been removed from the list.",
+      });
+    }, 1500);
+  };
 
   const handleStatusChange = (id: string, shouldBan: boolean) => {
     setSelectedRestaurantId(id);
@@ -425,6 +446,13 @@ const Page = () => {
       header: "Actions",
       cell: ({ row }) => {
         const restaurant = row.original;
+        if (isDeleting && deletingRestaurantId === restaurant.id) {
+          return (
+            <div className="flex justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          );
+        }
         return (
           <Popover>
             <PopoverTrigger asChild>
@@ -452,6 +480,14 @@ const Page = () => {
                 >
                   <Power className="mr-2 h-4 w-4" />
                   {restaurant.is_banned ? "Unban" : "Ban"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="flex items-center justify-start text-destructive hover:text-destructive"
+                  onClick={() => handleDeleteRestaurant(restaurant.id)}
+                >
+                  <Trash className="mr-2 h-4 w-4" />
+                  Delete
                 </Button>
               </div>
             </PopoverContent>

@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useRef } from "react";
-import { Eye, Power, Loader2 } from "lucide-react";
+import { Eye, Power, Loader2, Trash } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -90,6 +90,27 @@ const Page = () => {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isUnbanning, setIsUnbanning] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingCustomerId, setDeletingCustomerId] = useState<string | null>(
+    null
+  );
+
+  const handleDeleteCustomer = (customerId: string) => {
+    setDeletingCustomerId(customerId);
+    setIsDeleting(true);
+    setTimeout(() => {
+      setCustomers((prev) => prev.filter((c) => c.id !== customerId));
+      setCustomersSearchResult((prev) =>
+        prev.filter((c) => c.id !== customerId)
+      );
+      setIsDeleting(false);
+      setDeletingCustomerId(null);
+      toast({
+        title: "Deleted",
+        description: "The customer has been removed from the list.",
+      });
+    }, 1500);
+  };
 
   const handleStatusChange = (id: string, shouldBan: boolean) => {
     setSelectedCustomerId(id);
@@ -299,6 +320,13 @@ const Page = () => {
       header: "Actions",
       cell: ({ row }) => {
         const customer = row.original;
+        if (isDeleting && deletingCustomerId === customer.id) {
+          return (
+            <div className="flex justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          );
+        }
         return (
           <Popover>
             <PopoverTrigger asChild>
@@ -326,6 +354,14 @@ const Page = () => {
                 >
                   <Power className="mr-2 h-4 w-4" />
                   {customer.is_banned ? "Unban" : "Ban"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="flex items-center justify-start text-destructive hover:text-destructive"
+                  onClick={() => handleDeleteCustomer(customer.id)}
+                >
+                  <Trash className="mr-2 h-4 w-4" />
+                  Delete
                 </Button>
               </div>
             </PopoverContent>
@@ -447,10 +483,7 @@ const Page = () => {
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const response = await userSearchService.searchUsers(
-          query,
-          "customer"
-        );
+        const response = await userSearchService.searchUsers(query, "customer");
         if (response.EC === 0) {
           const convertedResults: Customer[] = response.data.results.map(
             (user: UserSearchResult) => ({

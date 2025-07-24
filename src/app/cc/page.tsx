@@ -26,6 +26,7 @@ import {
   MoreHorizontal,
   Power,
   Loader2,
+  Trash,
 } from "lucide-react";
 import Image from "next/image";
 import React, { useEffect, useState, useRef } from "react";
@@ -100,7 +101,26 @@ const Page = () => {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isUnbanning, setIsUnbanning] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingCCId, setDeletingCCId] = useState<string | null>(null);
 
+  const handleDeleteCC = (ccId: string) => {
+    setDeletingCCId(ccId);
+    setIsDeleting(true);
+    setTimeout(() => {
+      setCustomerCare((prev) => prev.filter((cc) => cc.id !== ccId));
+      setCustomerCareSearchResult((prev) =>
+        prev.filter((cc) => cc.id !== ccId)
+      );
+      setIsDeleting(false);
+      setDeletingCCId(null);
+      toast({
+        title: "Deleted",
+        description:
+          "The customer care representative has been removed from the list.",
+      });
+    }, 1500);
+  };
 
   const handleStatusChange = (id: string, shouldBan: boolean) => {
     setSelectedCCId(id);
@@ -148,13 +168,17 @@ const Page = () => {
           title: "Error",
           description:
             response.EM ||
-            `Failed to ${isUnbanning ? "unban" : "ban"} customer care representative.`,
+            `Failed to ${
+              isUnbanning ? "unban" : "ban"
+            } customer care representative.`,
           variant: "destructive",
         });
       }
     } catch (error) {
       console.error(
-        `Error ${isUnbanning ? "unbanning" : "banning"} customer care representative:`,
+        `Error ${
+          isUnbanning ? "unbanning" : "banning"
+        } customer care representative:`,
         error
       );
       toast({
@@ -349,6 +373,13 @@ const Page = () => {
       header: "Actions",
       cell: ({ row }) => {
         const cc = row.original;
+        if (isDeleting && deletingCCId === cc.id) {
+          return (
+            <div className="flex justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          );
+        }
         return (
           <Popover>
             <PopoverTrigger asChild>
@@ -373,12 +404,20 @@ const Page = () => {
                   className="flex items-center justify-start"
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
-                    handleStatusChange(cc.id, !cc.is_banned)}}
+                    handleStatusChange(cc.id, !cc.is_banned);
+                  }}
                 >
                   <Power className="mr-2 h-4 w-4" />
                   {cc.is_banned ? "Unban" : "Ban"}
                 </Button>
-              
+                <Button
+                  variant="ghost"
+                  className="flex items-center justify-start text-destructive hover:text-destructive"
+                  onClick={() => handleDeleteCC(cc.id)}
+                >
+                  <Trash className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
               </div>
             </PopoverContent>
           </Popover>

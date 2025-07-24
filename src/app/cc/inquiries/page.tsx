@@ -24,14 +24,17 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { Spinner } from "@/components/Spinner";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatEpochToRelativeTime } from "@/utils/functions/formatRelativeTime";
 import axiosInstance from "@/lib/axios";
 import { ENUM_INQUIRY_PRIORITY, ENUM_INQUIRY_STATUS } from "@/types/inquiries";
@@ -80,8 +83,12 @@ const Page = () => {
   const [selectedInquiry, setSelectedInquiry] =
     useState<EscalatedInquiry | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
-  const [status, setStatus] = useState<ENUM_INQUIRY_STATUS>(ENUM_INQUIRY_STATUS.OPEN);
-  const [priority, setPriority] = useState<ENUM_INQUIRY_PRIORITY>(ENUM_INQUIRY_PRIORITY.LOW);
+  const [status, setStatus] = useState<ENUM_INQUIRY_STATUS>(
+    ENUM_INQUIRY_STATUS.OPEN
+  );
+  const [priority, setPriority] = useState<ENUM_INQUIRY_PRIORITY>(
+    ENUM_INQUIRY_PRIORITY.LOW
+  );
   const [issueType, setIssueType] = useState<string>("OTHER");
   const [resolutionType, setResolutionType] = useState<string>("OTHER");
   const [resolutionNotes, setResolutionNotes] = useState<string>("");
@@ -120,24 +127,33 @@ const Page = () => {
   };
 
   const handleSave = async () => {
-    if (!selectedInquiry || !resolutionType || !issueType || !priority || !status || !resolutionNotes) {
+    if (
+      !selectedInquiry ||
+      !resolutionType ||
+      !issueType ||
+      !priority ||
+      !status ||
+      !resolutionNotes
+    ) {
       console.log("Please fill all fields");
       return;
     }
-    
+
     setIsLoading(true);
     setIsSubmitting(true);
-    
+
     const currentTime = Math.floor(Date.now() / 1000);
-    
+
     const requestBody = {
       status,
       priority,
       issue_type: issueType,
-      resolution_type: status === ENUM_INQUIRY_STATUS.RESOLVED ? resolutionType : undefined,
+      resolution_type:
+        status === ENUM_INQUIRY_STATUS.RESOLVED ? resolutionType : undefined,
       resolution_notes: resolutionNotes,
       last_response_at: currentTime,
-      resolved_at: status === ENUM_INQUIRY_STATUS.RESOLVED ? currentTime : undefined,
+      resolved_at:
+        status === ENUM_INQUIRY_STATUS.RESOLVED ? currentTime : undefined,
       first_response_at: selectedInquiry.first_response_at || currentTime,
     };
 
@@ -146,7 +162,7 @@ const Page = () => {
         `customer-care-inquiries/${selectedInquiry.id}`,
         requestBody
       );
-      
+
       if (response.data.EC === 0) {
         fetchEscalatedInquiries();
         setIsDetailsDialogOpen(false);
@@ -354,7 +370,7 @@ const Page = () => {
 
   return (
     <div className="p-4">
-      <Spinner isVisible={isLoading} isOverlay />
+      <Spinner isVisible={isLoading || isSubmitting} isOverlay />
       <h1 className="text-2xl font-bold mb-4">Escalated Inquiries</h1>
 
       <div className="mt-8">
@@ -398,7 +414,11 @@ const Page = () => {
         <DialogContent className="w-full max-w-4xl max-h-[80vh] overflow-y-auto">
           <div className="space-y-6">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setIsDetailsDialogOpen(false)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsDetailsDialogOpen(false)}
+              >
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 Back to Tickets
               </Button>
@@ -407,20 +427,27 @@ const Page = () => {
               </h2>
             </div>
 
-          {selectedInquiry && (
-            <Card>
+            {selectedInquiry && (
+              <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className={`w-4 h-4 rounded-full ${getStatusColor(status)}`}></div>
+                    <div
+                      className={`w-4 h-4 rounded-full ${getStatusColor(
+                        status
+                      )}`}
+                    ></div>
                     <CardTitle className="text-lg">Ticket Details</CardTitle>
                     {priority === ENUM_INQUIRY_PRIORITY.HIGH && (
-                      <Badge className={getPriorityColor(priority)}>High Priority</Badge>
+                      <Badge className={getPriorityColor(priority)}>
+                        High Priority
+                      </Badge>
                     )}
                   </div>
                   <div className="text-sm text-gray-500">
-                    Created: {formatEpochToRelativeTime(selectedInquiry.created_at)} ago
+                    Created:{" "}
+                    {formatEpochToRelativeTime(selectedInquiry.created_at)} ago
                   </div>
-              </CardHeader>
+                </CardHeader>
 
                 <CardContent className="space-y-6">
                   {/* Basic Information */}
@@ -429,40 +456,77 @@ const Page = () => {
                     <div className="col-span-2 space-y-6">
                       <h3 className="font-medium">Basic Information</h3>
                       <div className="grid grid-cols-2 gap-6">
-                <div>
+                        <div>
                           <label className="text-sm font-medium">Status</label>
-                          <Select value={status} onValueChange={(value) => setStatus(value as ENUM_INQUIRY_STATUS)}>
+                          <Select
+                            value={status}
+                            onValueChange={(value) =>
+                              setStatus(value as ENUM_INQUIRY_STATUS)
+                            }
+                          >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select Status" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={ENUM_INQUIRY_STATUS.OPEN}>Open</SelectItem>
-                              <SelectItem value={ENUM_INQUIRY_STATUS.IN_PROGRESS}>In Progress</SelectItem>
-                              <SelectItem value={ENUM_INQUIRY_STATUS.RESOLVED}>Resolved</SelectItem>
-                              <SelectItem value={ENUM_INQUIRY_STATUS.CLOSED}>Closed</SelectItem>
-                              <SelectItem value={ENUM_INQUIRY_STATUS.ESCALATE}>Escalate</SelectItem>
+                              <SelectItem value={ENUM_INQUIRY_STATUS.OPEN}>
+                                Open
+                              </SelectItem>
+                              <SelectItem
+                                value={ENUM_INQUIRY_STATUS.IN_PROGRESS}
+                              >
+                                In Progress
+                              </SelectItem>
+                              <SelectItem value={ENUM_INQUIRY_STATUS.RESOLVED}>
+                                Resolved
+                              </SelectItem>
+                              <SelectItem value={ENUM_INQUIRY_STATUS.CLOSED}>
+                                Closed
+                              </SelectItem>
+                              <SelectItem value={ENUM_INQUIRY_STATUS.ESCALATE}>
+                                Escalate
+                              </SelectItem>
                             </SelectContent>
                           </Select>
-                </div>
+                        </div>
 
-                <div>
-                          <label className="text-sm font-medium">Priority</label>
-                          <Select value={priority} onValueChange={(value) => setPriority(value as ENUM_INQUIRY_PRIORITY)}>
+                        <div>
+                          <label className="text-sm font-medium">
+                            Priority
+                          </label>
+                          <Select
+                            value={priority}
+                            onValueChange={(value) =>
+                              setPriority(value as ENUM_INQUIRY_PRIORITY)
+                            }
+                          >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select Priority" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={ENUM_INQUIRY_PRIORITY.URGENT}>Urgent</SelectItem>
-                              <SelectItem value={ENUM_INQUIRY_PRIORITY.HIGH}>High</SelectItem>
-                              <SelectItem value={ENUM_INQUIRY_PRIORITY.MEDIUM}>Medium</SelectItem>
-                              <SelectItem value={ENUM_INQUIRY_PRIORITY.LOW}>Low</SelectItem>
+                              <SelectItem value={ENUM_INQUIRY_PRIORITY.URGENT}>
+                                Urgent
+                              </SelectItem>
+                              <SelectItem value={ENUM_INQUIRY_PRIORITY.HIGH}>
+                                High
+                              </SelectItem>
+                              <SelectItem value={ENUM_INQUIRY_PRIORITY.MEDIUM}>
+                                Medium
+                              </SelectItem>
+                              <SelectItem value={ENUM_INQUIRY_PRIORITY.LOW}>
+                                Low
+                              </SelectItem>
                             </SelectContent>
                           </Select>
-                </div>
+                        </div>
 
-                <div>
-                          <label className="text-sm font-medium">Issue Type</label>
-                          <Select value={issueType} onValueChange={setIssueType}>
+                        <div>
+                          <label className="text-sm font-medium">
+                            Issue Type
+                          </label>
+                          <Select
+                            value={issueType}
+                            onValueChange={setIssueType}
+                          >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select Issue Type" />
                             </SelectTrigger>
@@ -472,30 +536,45 @@ const Page = () => {
                               <SelectItem value="PRODUCT">Product</SelectItem>
                               <SelectItem value="DELIVERY">Delivery</SelectItem>
                               <SelectItem value="REFUND">Refund</SelectItem>
-                              <SelectItem value="TECHNICAL">Technical</SelectItem>
+                              <SelectItem value="TECHNICAL">
+                                Technical
+                              </SelectItem>
                               <SelectItem value="OTHER">Other</SelectItem>
                             </SelectContent>
                           </Select>
-                </div>
+                        </div>
 
-                <div>
-                          <label className="text-sm font-medium">Resolution Type</label>
-                          <Select value={resolutionType} onValueChange={setResolutionType}>
+                        <div>
+                          <label className="text-sm font-medium">
+                            Resolution Type
+                          </label>
+                          <Select
+                            value={resolutionType}
+                            onValueChange={setResolutionType}
+                          >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select Resolution Type" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="REFUND">Refund</SelectItem>
-                              <SelectItem value="REPLACEMENT">Replacement</SelectItem>
-                              <SelectItem value="INVESTIGATING">Investigating</SelectItem>
-                              <SelectItem value="ACCOUNT_FIX">Account Fix</SelectItem>
-                              <SelectItem value="TECHNICAL_SUPPORT">Technical Support</SelectItem>
+                              <SelectItem value="REPLACEMENT">
+                                Replacement
+                              </SelectItem>
+                              <SelectItem value="INVESTIGATING">
+                                Investigating
+                              </SelectItem>
+                              <SelectItem value="ACCOUNT_FIX">
+                                Account Fix
+                              </SelectItem>
+                              <SelectItem value="TECHNICAL_SUPPORT">
+                                Technical Support
+                              </SelectItem>
                               <SelectItem value="OTHER">Other</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
-                </div>
+                    </div>
 
                     {/* Right side - Customer Information */}
                     <div className="space-y-4">
@@ -505,37 +584,53 @@ const Page = () => {
                         <Avatar>
                           <AvatarImage
                             src={selectedInquiry.customer?.avatar?.url}
-                            alt={selectedInquiry.customer.first_name.slice(0, 1)}
+                            alt={selectedInquiry.customer.first_name.slice(
+                              0,
+                              1
+                            )}
                           />
                           <AvatarFallback>
                             {selectedInquiry.customer.first_name.slice(0, 1)}
                           </AvatarFallback>
                         </Avatar>
-                <div>
+                        <div>
                           <div className="font-medium">
-                            {selectedInquiry.customer.last_name} {selectedInquiry.customer.first_name}
+                            {selectedInquiry.customer.last_name}{" "}
+                            {selectedInquiry.customer.first_name}
                           </div>
-                </div>
-                </div>
+                        </div>
+                      </div>
 
                       <div className="space-y-2">
                         <h4 className="text-sm font-medium">Timeline</h4>
                         <div className="text-sm space-y-1">
                           {selectedInquiry.first_response_at && (
-                <div>
-                              First Response: {formatEpochToRelativeTime(selectedInquiry.first_response_at)} ago
-                </div>
+                            <div>
+                              First Response:{" "}
+                              {formatEpochToRelativeTime(
+                                selectedInquiry.first_response_at
+                              )}{" "}
+                              ago
+                            </div>
                           )}
                           {selectedInquiry.last_response_at && (
-                <div>
-                              Last Response: {formatEpochToRelativeTime(selectedInquiry.last_response_at)} ago
-                </div>
+                            <div>
+                              Last Response:{" "}
+                              {formatEpochToRelativeTime(
+                                selectedInquiry.last_response_at
+                              )}{" "}
+                              ago
+                            </div>
                           )}
-                {selectedInquiry.resolved_at && (
-                  <div>
-                              Resolved: {formatEpochToRelativeTime(selectedInquiry.resolved_at)} ago
-                  </div>
-                )}
+                          {selectedInquiry.resolved_at && (
+                            <div>
+                              Resolved:{" "}
+                              {formatEpochToRelativeTime(
+                                selectedInquiry.resolved_at
+                              )}{" "}
+                              ago
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -547,16 +642,22 @@ const Page = () => {
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Subject</label>
-                      <div className="p-3 bg-gray-50 rounded-md">{selectedInquiry.subject}</div>
+                      <div className="p-3 bg-gray-50 rounded-md">
+                        {selectedInquiry.subject}
+                      </div>
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Description</label>
-                      <div className="p-3 bg-gray-50 rounded-md">{selectedInquiry.description}</div>
+                      <div className="p-3 bg-gray-50 rounded-md">
+                        {selectedInquiry.description}
+                      </div>
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Resolution Notes</label>
+                      <label className="text-sm font-medium">
+                        Resolution Notes
+                      </label>
                       <textarea
                         className="w-full p-3 border rounded-md"
                         rows={4}
@@ -569,16 +670,19 @@ const Page = () => {
 
                   {/* Action Buttons */}
                   <div className="flex justify-end space-x-2 pt-4">
-                    <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDetailsDialogOpen(false)}
+                    >
                       Cancel
                     </Button>
                     <Button onClick={handleSave} disabled={isSubmitting}>
                       {isSubmitting ? "Saving..." : "Save Changes"}
                     </Button>
-                    </div>
-                  </CardContent>
-            </Card>
-          )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </DialogContent>
       </Dialog>
