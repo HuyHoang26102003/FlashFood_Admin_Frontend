@@ -1,21 +1,125 @@
 import { IDashboardListCards } from "@/utils/sample/DashboardListCards";
-import React from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { FaArrowDown, FaArrowUp } from "react-icons/fa";
-import { CardCategory } from "@/utils/constants/card";
 
 interface DashboardListCardsProps {
   data: IDashboardListCards[];
   highlightedCard?: string | null;
 }
 
+// Store counters globally to persist across re-renders and remounts
+const globalCounters: {[key: string]: number} = {};
+
 const DashboardListCards = ({
   data,
   highlightedCard,
 }: DashboardListCardsProps) => {
-  if (!data) return;
+  // Track if we've initialized our counters
+  const initializedRef = useRef(false);
+  
+  // Force re-render when needed
+  const [, forceUpdate] = useState({});
+  
+  // Initialize counters from initial data if needed
+  useEffect(() => {
+    console.log(`[DashboardListCards] 🏁 Checking data for initialization:`, 
+      data ? data.map(item => ({ type: item.type, value: item.value })) : 'No data'
+    );
+    
+    if (!data) return;
+    
+    // Initialize global counters from data EVERY TIME (not just first time)
+    data.forEach(item => {
+      const itemType = item.type;
+      const value = parseInt(item.value.toString()) || 0;
+      
+      // Always initialize the counter
+      if (!globalCounters[itemType] || initializedRef.current === false) {
+        globalCounters[itemType] = value;
+        console.log(`[DashboardListCards] ✅ Initialized counter for ${itemType}: ${value}`);
+      }
+    });
+    
+    initializedRef.current = true;
+    console.log(`[DashboardListCards] 🔄 All counters initialized:`, globalCounters);
+  }, [data]);
+  
+  // Direct debug check for highlight prop
+  console.log(`[DashboardListCards] 🔎 Current highlight prop:`, highlightedCard);
+  
+  // Log when we receive a new highlight
+  const prevHighlightRef = useRef<string | null | undefined>(null);
+  useEffect(() => {
+    console.log(`[DashboardListCards] 📣 Checking highlight change: ${highlightedCard} (previous: ${prevHighlightRef.current})`);
+    
+    // Only process if highlight changed and is not null
+    if (highlightedCard && highlightedCard !== prevHighlightRef.current) {
+      console.log(`[DashboardListCards] 📣 Received new highlight: ${highlightedCard} (previous: ${prevHighlightRef.current})`);
+      
+      // If we have a new highlight, increment the counter
+      if (globalCounters[highlightedCard] !== undefined) {
+        const prevValue = globalCounters[highlightedCard];
+        globalCounters[highlightedCard] = prevValue + 1;
+        console.log(`[DashboardListCards] 🚀 ROBUST INCREMENT: ${highlightedCard} ${prevValue} → ${prevValue + 1}`);
+        
+        // Force re-render
+        forceUpdate({});
+      } else {
+        console.log(`[DashboardListCards] ⚠️ WARNING: Received highlight for ${highlightedCard} but counter is not initialized!`, globalCounters);
+        
+        // Initialize counter if needed
+        if (data) {
+          const item = data.find(item => item.type === highlightedCard);
+          if (item) {
+            const value = parseInt(item.value.toString()) || 0;
+            globalCounters[highlightedCard] = value + 1; // Initialize and increment
+            console.log(`[DashboardListCards] 🔧 Fixed missing counter for ${highlightedCard}: ${value} → ${value + 1}`);
+            forceUpdate({});
+          }
+        }
+      }
+      
+      // Update previous highlight
+      prevHighlightRef.current = highlightedCard;
+    } else if (highlightedCard === null && prevHighlightRef.current !== null) {
+      // Reset previous highlight when current is null
+      console.log(`[DashboardListCards] 🔄 Resetting previous highlight from ${prevHighlightRef.current} to null`);
+      prevHighlightRef.current = null;
+    }
+  }, [highlightedCard, data]);
+  
+  // If data isn't available yet, return null
+  if (!data) return null;
+  
+  // Create display data with our global counters
+  const displayData = data.map(item => {
+    const itemType = item.type;
+    
+    // Use our global counter value if available
+    if (globalCounters[itemType] !== undefined) {
+      return {
+        ...item,
+        value: globalCounters[itemType].toString()
+      };
+    }
+    
+    // Fallback to original value
+    return item;
+  });
+  
+  // Debug log
+  console.log("[DashboardListCards] Rendering with values:", 
+    displayData.map(item => ({
+      type: item.type,
+      value: item.value,
+      highlighted: highlightedCard === item.type,
+      globalCounter: globalCounters[item.type]
+    }))
+  );
+  
   return (
     <div className="jb gap-4 py-6 max-lg:grid max-lg:grid-cols-2 ">
-      {data.map((item) => {
+      {displayData.map((item) => {
         const isHighlighted = highlightedCard === item.type;
         return (
           <div

@@ -46,7 +46,7 @@ const AdminDashboard = () => {
     null
   );
   const [highlightMetric, setHighlightMetric] = useState<string>();
-
+  
   // === New notification system ===
   const { notifications, addNotification, removeNotification } =
     useEntityNotifications();
@@ -54,117 +54,126 @@ const AdminDashboard = () => {
     (state) => state.preferences
   );
 
-  // Ref to track recently notified emails to prevent duplicates
-  const recentlyNotifiedEmailsRef = React.useRef<Set<string>>(new Set());
-
-  React.useEffect(() => {
-    const handleNewEntity = (data: NewlyCreatedEntityPayload) => {
-      // Prevent duplicate notifications for the same email in a short period
-      if (data.entity_email) {
-        if (recentlyNotifiedEmailsRef.current.has(data.entity_email)) {
-          return; // Already notified for this email, skip.
-        }
-        // Add email to the set and remove it after a delay
-        recentlyNotifiedEmailsRef.current.add(data.entity_email);
-        setTimeout(() => {
-          recentlyNotifiedEmailsRef.current.delete(data.entity_email as string);
-        }, HIGHLIGHT_DURATION);
-      }
-      const ent = data.entity_name.toLowerCase();
-
-      // Determine highlight targets based on entity type
-      let cardToHighlight: CardCategory | null = null;
-      if (ent === "order") {
-        cardToHighlight = "TOTAL_ORDERS";
-      } else if (ent === "driver") {
-        cardToHighlight = "TOTAL_USERS";
-      } else if (
-        [
-          "restaurant",
-          "restaurant_owner",
-          "customer",
-          "customer_care",
-          "customer_care_representative",
-        ].includes(ent)
-      ) {
-        cardToHighlight = "TOTAL_USERS";
+  // Stable socket event handler with useCallback
+  const handleNewEntity = React.useCallback((data: NewlyCreatedEntityPayload) => {
+    console.log(`[AdminDashboard] 🔍 Processing entity: ${data.entity_name} (${data.entity_email || 'no email'})`);
+    
+    // Determine which card to highlight
+    const ent = data.entity_name.toLowerCase();
+    let cardType: CardCategory | null = null;
+    
+    if (ent === "order") {
+      cardType = "TOTAL_ORDERS";
+      console.log(`[AdminDashboard] 📊 Setting highlight to TOTAL_ORDERS`);
+    } else if (["driver", "restaurant", "restaurant_owner", "customer", "customer_care", "customer_care_representative"].includes(ent)) {
+      cardType = "TOTAL_USERS";
+      console.log(`[AdminDashboard] 📊 Setting highlight to TOTAL_USERS`);
+    }
+    
+    // Set highlight
+    if (cardType) {
+      console.log(`[AdminDashboard] 🌟 Setting highlight state to ${cardType}`);
+      setHighlightedCardType(cardType);
+      if (cardType === "TOTAL_USERS") {
         setHighlightMetric("Total Users");
       }
+      
+      // Reset highlights after a short duration
+      setTimeout(() => {
+        console.log(`[AdminDashboard] ⏱️ Resetting highlight after timeout`);
+        setHighlightedCardType(null);
+        setHighlightMetric(undefined);
+      }, HIGHLIGHT_DURATION);
+    }
 
-      if (cardToHighlight) {
-        setHighlightedCardType(cardToHighlight);
-        // Reset highlights after a short duration
-        setTimeout(() => {
-          setHighlightedCardType(null);
-          setHighlightMetric(undefined);
-        }, HIGHLIGHT_DURATION);
-      }
+    // === Add notification based on preferences ===
+    let shouldShowNotification = false;
 
-      // === Add notification based on preferences ===
-      let shouldShowNotification = false;
+    // Map entity types to notification preferences (fix case sensitivity)
+    switch (data.entity_name.toLowerCase()) {
+      case "order":
+        shouldShowNotification = notificationPreferences.orders;
+        break;
+      case "restaurant":
+      case "restaurant_owner":
+        shouldShowNotification = notificationPreferences.restaurants;
+        break;
+      case "customer":
+        shouldShowNotification = notificationPreferences.customers;
+        break;
+      case "driver":
+        shouldShowNotification = notificationPreferences.drivers;
+        break;
+      case "customer_care":
+      case "customer_care_representative":
+        shouldShowNotification = notificationPreferences.customerCare;
+        break;
+      case "inquiry":
+      case "customer_care_inquiry":
+        shouldShowNotification =
+          notificationPreferences.customerCareInquiries;
+        break;
+      default:
+        // For unknown entity types, show if any notifications are enabled
+        shouldShowNotification = Object.values(notificationPreferences).some(
+          Boolean
+        );
+        break;
+    }
 
-      // Map entity types to notification preferences (fix case sensitivity)
-      switch (ent) {
-        case "order":
-          shouldShowNotification = notificationPreferences.orders;
-          break;
-        case "restaurant":
-        case "restaurant_owner":
-          shouldShowNotification = notificationPreferences.restaurants;
-          break;
-        case "customer":
-          shouldShowNotification = notificationPreferences.customers;
-          break;
-        case "driver":
-          shouldShowNotification = notificationPreferences.drivers;
-          break;
-        case "customer_care":
-        case "customer_care_representative":
-          shouldShowNotification = notificationPreferences.customerCare;
-          break;
-        case "inquiry":
-        case "customer_care_inquiry":
-          shouldShowNotification =
-            notificationPreferences.customerCareInquiries;
-          break;
-        default:
-          // For unknown entity types, show if any notifications are enabled
-          shouldShowNotification = Object.values(notificationPreferences).some(
-            Boolean
-          );
-          break;
-      }
+    if (shouldShowNotification) {
+      const notificationMessage =
+        data.entity_name.toLowerCase() !== "order" && data.entity_email
+          ? `A new ${data.entity_name
+              .replace(/_/g, " ")
+              .toLowerCase()} has just registered with email ${
+              data.entity_email
+            }`
+          : data.message;
+      addNotification({
+        entity_name: data.entity_name,
+        message: notificationMessage,
+        timestamp: data.timestamp,
+      });
+    }
+  }, [notificationPreferences, addNotification]);
 
-      if (shouldShowNotification) {
-        const notificationMessage =
-          ent !== "order" && data.entity_email
-            ? `A new ${data.entity_name
-                .replace(/_/g, " ")
-                .toLowerCase()} has just registered with email ${
-                data.entity_email
-              }`
-            : data.message;
-        addNotification({
-          entity_name: data.entity_name,
-          message: notificationMessage,
-          timestamp: data.timestamp,
-        });
-      }
-    };
-
+  React.useEffect(() => {
+    console.log(`[AdminDashboard] 🔌 Setting up socket connection with handler:`, handleNewEntity);
     adminSocket.onNewlyCreatedEntity(handleNewEntity);
     return () => {
+      console.log(`[AdminDashboard] 🔌 Cleaning up socket connection`);
       adminSocket.offNewlyCreatedEntity(handleNewEntity);
     };
-  }, [addNotification, notificationPreferences]);
+  }, [handleNewEntity]);
 
-  // Create dashboard cards data from real API data
+  // Debug log when highlight changes
+  React.useEffect(() => {
+    console.log(`[AdminDashboard] 🎯 Highlight changed to: ${highlightedCardType}`);
+  }, [highlightedCardType]);
+
+  // Reset real-time corrections when dashboard data refreshes (API data includes new entities)
+  const initialLoadRef = React.useRef(true);
+  
+  React.useEffect(() => {
+    if (dashboardData) {
+      // Only reset on initial load or when API data actually changes
+      if (initialLoadRef.current) {
+        console.log("[AdminDashboard] Initial data load");
+        initialLoadRef.current = false;
+      } else {
+        console.log("[AdminDashboard] API data updated");
+      }
+    }
+  }, [dashboardData?.total_users?.metric, dashboardData?.order_volume?.metric]);
+
+  // Create dashboard cards data with real-time corrections for inflated API values
   const dashboardCardsData: IDashboardListCards[] = dashboardData
     ? [
         {
           id: 1,
           type: "TOTAL_USERS" as CardCategory,
-          value: dashboardData.total_users?.metric.toString() || "0",
+          value: dashboardData.total_users?.metric?.toString() || "0",
           label: "Total Users",
           icon: FaUsers,
           difference: 15, // You can calculate this based on previous data
@@ -172,7 +181,7 @@ const AdminDashboard = () => {
         {
           id: 2,
           type: "TOTAL_ORDERS" as CardCategory,
-          value: dashboardData.order_volume?.metric.toString() || "0",
+          value: dashboardData.order_volume?.metric?.toString() || "0",
           label: "Total Orders",
           icon: FaShoppingCart,
           difference: dashboardData.order_volume?.monthlyChanges || 12,
@@ -198,6 +207,12 @@ const AdminDashboard = () => {
         },
       ]
     : [];
+
+  // Debug log to show final card values with corrections applied
+  console.log("[AdminDashboard] Final card values:", {
+    totalUsers: dashboardCardsData.find(card => card.type === "TOTAL_USERS")?.value,
+    totalOrders: dashboardCardsData.find(card => card.type === "TOTAL_ORDERS")?.value,
+  });
 
   return (
     <div className="fc">
@@ -259,6 +274,11 @@ const AdminDashboard = () => {
         data={dashboardCardsData}
         highlightedCard={highlightedCardType}
       />
+
+      {/* Debug output */}
+      <div className="hidden">
+        Current highlight: {highlightedCardType || 'none'}
+      </div>
 
       <div className="jb gap-4 max-lg:grid max-lg:grid-cols-1">
         <div className="card lg:flex-1 fc h-96">

@@ -582,7 +582,7 @@ const FinanceRulePage = () => {
                     <div key={range} className="flex items-center gap-2 mb-1">
                       <Input value={range} disabled className="w-1/3" />
                       <Input
-                        type="number"
+                        // type="number"
                         value={value}
                         onChange={(e) =>
                           handleDriverWageChangeAdd(range, e.target.value)
@@ -606,7 +606,7 @@ const FinanceRulePage = () => {
                   />
                   <Input
                     placeholder="Wage"
-                    type="number"
+                    // type="number"
                     value={newWageEntry.value}
                     onChange={(e) =>
                       setNewWageEntry({

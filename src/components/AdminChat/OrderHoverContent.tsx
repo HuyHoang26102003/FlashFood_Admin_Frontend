@@ -26,10 +26,10 @@ export default function OrderHoverContent({ orderId }: OrderHoverContentProps) {
       setError(null);
       try {
         const response = await axiosInstance.get(`/orders/${orderId}`);
-        if (response.data.data.EC === 0) {
-          setOrder(response.data.data.data);
+        if (response.data.EC === 0) {
+          setOrder(response.data.data);
         } else {
-          setError(response.data.data.EM || "Failed to fetch order details.");
+          setError(response.data.EM || "Failed to fetch order details.");
         }
       } catch (err) {
         setError("An error occurred while fetching order details.");

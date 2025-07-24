@@ -6,7 +6,9 @@ import {
   ChatMessage,
   OptionItem,
   ResponseType,
-  RevenueData,
+  OrderData,
+  CustomerData,
+  MessageContent,
 } from "@/hooks/useAdminChatSocket";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,16 +24,17 @@ import {
   MessageCircle,
   DollarSign,
   ShoppingCart,
-  Calendar,
   TrendingUp,
   Clock,
   Users,
   Search,
   MapPin,
+  UserCheck,
 } from "lucide-react";
 import { Enum_BotActionCode } from "@/constants/api_rules";
 import BotTrainingDialog from "./BotTrainingDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { ScrollArea } from "./ui/scroll-area";
 
 interface ChatbotBoxProps {
   token: string | null;
@@ -50,7 +53,6 @@ const ChatbotBox: React.FC<ChatbotBoxProps> = ({ token }) => {
     sendMessage,
     sendNextStep,
     sendGetHelp,
-    clearMessages,
   } = useAdminChatSocket(token);
 
   const scrollToBottom = () => {
@@ -81,7 +83,82 @@ const ChatbotBox: React.FC<ChatbotBoxProps> = ({ token }) => {
     }
   };
 
+  const isOrderData = (content: MessageContent): content is OrderData => {
+    return (
+      typeof content === "object" && 
+      content !== null && 
+      !Array.isArray(content) &&
+      'id' in content && 
+      'status' in content
+    );
+  };
+
+  const isCustomerData = (content: MessageContent): content is CustomerData => {
+    return (
+      typeof content === "object" && 
+      content !== null && 
+      !Array.isArray(content) &&
+      'customers' in content && 
+      Array.isArray((content as Record<string, unknown>).customers)
+    );
+  };
+
+  const renderCustomersList = (data: CustomerData) => {
+    return (
+      <div className="bg-gradient-to-br from-violet-50 to-purple-50 border border-purple-200 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center space-x-2 mb-3">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <UserCheck className="w-4 h-4 text-purple-600" />
+          </div>
+          <h3 className="font-semibold text-purple-800">Registered Customers</h3>
+        </div>
+        
+        <div className="bg-white/80 rounded-lg p-3 border border-purple-100 mb-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-600">
+              Total Customers
+            </span>
+            <span className="text-2xl font-bold text-purple-700">
+              {data.customers.length || data.count || data.customerCount || 0}
+            </span>
+          </div>
+          {data.message && (
+            <div className="mt-2 text-xs text-purple-600">
+              {data.message}
+            </div>
+          )}
+        </div>
+        
+        {data.customers && data.customers.length > 0 && (
+          <ScrollArea className="h-[180px] bg-white/60 rounded-lg border border-purple-100 p-2">
+            <div className="space-y-2">
+              {data.customers.map((customer, index) => (
+                <div 
+                  key={customer.id || index} 
+                  className="p-2 border-b border-purple-50 last:border-0"
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="p-1 bg-purple-100 rounded-full">
+                      <User className="w-3 h-3 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{customer.name || "Unknown"}</p>
+                      {customer.phone && customer.phone !== "N/A" && (
+                        <p className="text-xs text-gray-500">{customer.phone}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+      </div>
+    );
+  };
+
   const renderMessageContent = (message: ChatMessage) => {
+    // Handle options type
     if (
       message.type === ResponseType.OPTIONS &&
       Array.isArray(message.content)
@@ -104,26 +181,252 @@ const ChatbotBox: React.FC<ChatbotBoxProps> = ({ token }) => {
       );
     }
 
+    // Handle guide type
     if (message.type === ResponseType.GUIDE) {
       return (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="flex items-start space-x-2">
             <HelpCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
             <span className="text-blue-800 text-sm">
-              {message.content as string}
+              {typeof message.content === "string" 
+                ? message.content 
+                : JSON.stringify(message.content)}
             </span>
           </div>
         </div>
       );
     }
 
+    // Handle generic object response (not properly typed)
+    if (typeof message.content === "object" && message.content !== null && !Array.isArray(message.content)) {
+      // Check if it's a customer data object
+      if (isCustomerData(message.content)) {
+        return renderCustomersList(message.content);
+      }
+      
+      // Check if it's an order object with id, status, details
+      if (isOrderData(message.content)) {
+        return (
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center space-x-2 mb-3">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <Search className="w-4 h-4 text-indigo-600" />
+              </div>
+              <h3 className="font-semibold text-indigo-800">Order Details</h3>
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-white/80 rounded-lg p-3 border border-indigo-100">
+                <div>
+                  <div>
+                    <span className="text-gray-500">Order ID:</span>
+                    <p className="font-semibold text-indigo-700">
+                      #{message.content.id}
+                    </p>
+                  </div>
+                  <div className="my-2 ">
+                    <span className="text-gray-500">Status:</span>
+                    <p className="font-semibold text-primary-700 capitalize">
+                      {message.content.status || "N/A"}
+                    </p>
+                  </div>
+                  {message.content.details && (
+                    <div className="col-span-2">
+                      <span className="text-gray-500">Details:</span>
+                      <p className="font-semibold">
+                        {message.content.details}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      
+      // Fallback for other object types
+      return (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+          <div className="text-sm text-gray-800">
+            {Object.entries(message.content).map(([key, value]) => (
+              <div key={key} className="mb-1">
+                <span className="font-medium">{key}: </span>
+                <span>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Handle action result type
     if (message.type === ResponseType.ACTION_RESULT) {
       switch (message.action_code) {
         case Enum_BotActionCode.GET_GROSS_REVENUE_TODAY:
-          return <RevenueCard data={message.content as RevenueData} />;
+          console.log("Revenue data received:", message.content);
+          // Directly render a styled revenue card
+          if (typeof message.content === "object" && 
+              message.content !== null && 
+              !Array.isArray(message.content)) {
+            
+            // Extract data with fallbacks
+            const content = message.content as Record<string, unknown>;
+            const revenue = typeof content.revenue === 'number' ? content.revenue : 
+               (typeof content.revenue === 'string' ? parseFloat(content.revenue) : 0);
+            const orderCount = typeof content.orderCount === 'number' ? content.orderCount : 
+                  (typeof content.orderCount === 'string' ? parseInt(content.orderCount) : 0);
+            const date = content.date ? String(content.date) : '';
+            const msg = content.message ? String(content.message) : '';
+            
+            // Format currency
+            const formattedRevenue = new Intl.NumberFormat('en-US', {
+              style: 'currency',
+              currency: 'USD'
+            }).format(revenue);
+            
+            // Calculate percentage for progress bar
+            const goalPercentage = Math.min(Math.round((revenue / 1000) * 100), 100);
+            
+            return (
+              <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="p-2 bg-emerald-100 rounded-lg">
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <h3 className="font-semibold text-emerald-800">Revenue Summary</h3>
+                  </div>
+                  {date && (
+                    <Badge variant="outline" className="bg-white text-emerald-700 border-emerald-200">
+                      {date}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {/* Main Revenue Display */}
+                  <div className="bg-white rounded-lg p-4 border border-emerald-100 shadow-sm">
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-500 mb-1">Total Revenue</p>
+                      <div className="flex items-center justify-center">
+                        <DollarSign className="w-6 h-6 text-emerald-600 mr-1" />
+                        <span className="text-3xl font-bold text-emerald-700">
+                          {formattedRevenue}
+                        </span>
+                      </div>
+                      {msg && (
+                        <p className="text-xs text-emerald-600 mt-2">{msg}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stats Row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white rounded-lg p-3 border border-emerald-100 shadow-sm">
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <ShoppingCart className="w-4 h-4 text-blue-600 mr-1" />
+                          <p className="text-xs text-gray-500">Orders</p>
+                        </div>
+                        <p className="text-xl font-bold text-gray-800">{orderCount}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-3 border border-emerald-100 shadow-sm">
+                      <div className="text-center">
+                        <p className="text-xs text-gray-500 mb-1">Avg. Order Value</p>
+                        <p className="text-xl font-bold text-gray-800">
+                          {orderCount > 0
+                            ? new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD'
+                              }).format(revenue / orderCount)
+                            : "$0.00"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="bg-white rounded-lg p-3 border border-emerald-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-500">Daily Goal</span>
+                      <span className="text-xs font-medium text-emerald-700">
+                        {goalPercentage}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div 
+                        className="bg-gradient-to-r from-emerald-500 to-green-500 h-2 rounded-full" 
+                        style={{ width: `${goalPercentage}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-end mt-1">
+                      <span className="text-xs text-gray-400">Target: $1,000</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          
+          // Fallback for other formats
+          return (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <span className="text-gray-800 text-sm">
+                {typeof message.content === "object"
+                  ? JSON.stringify(message.content, null, 2)
+                  : String(message.content)}
+              </span>
+            </div>
+          );
+
+        case Enum_BotActionCode.GET_CUSTOMERS_REGISTERED_TODAY:
+          if (isCustomerData(message.content)) {
+            return renderCustomersList(message.content);
+          } else if (typeof message.content === "object" && message.content !== null) {
+            // Handle the simple count response
+            return (
+              <div className="bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center space-x-2 mb-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <Users className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <h3 className="font-semibold text-purple-800">New Customers</h3>
+                </div>
+                <div className="bg-white/80 rounded-lg p-3 border border-purple-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-600">
+                      Registered Today
+                    </span>
+                    <span className="text-2xl font-bold text-purple-700">
+                      {(() => {
+                        if (typeof message.content === "object" && message.content !== null) {
+                          if (Array.isArray(message.content)) {
+                            return "0";
+                          }
+                          
+                          const content = message.content as Record<string, unknown>;
+                          if ('count' in content && typeof content.count === 'number') {
+                            return content.count;
+                          }
+                          if ('customerCount' in content && typeof content.customerCount === 'number') {
+                            return content.customerCount;
+                          }
+                          return "0";
+                        }
+                        return String(message.content);
+                      })()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return null;
 
         case Enum_BotActionCode.GET_TOTAL_ORDERS_TODAY:
-          const orderData = message.content as any;
           return (
             <div className="bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-200 rounded-xl p-4 shadow-sm">
               <div className="flex items-center space-x-2 mb-3">
@@ -138,34 +441,23 @@ const ChatbotBox: React.FC<ChatbotBoxProps> = ({ token }) => {
                     Total Orders
                   </span>
                   <span className="text-2xl font-bold text-blue-700">
-                    {typeof orderData === "object"
-                      ? orderData.count || orderData.orderCount
-                      : orderData}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-
-        case Enum_BotActionCode.GET_CUSTOMERS_REGISTERED_TODAY:
-          const customerData = message.content as any;
-          return (
-            <div className="bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center space-x-2 mb-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Users className="w-4 h-4 text-purple-600" />
-                </div>
-                <h3 className="font-semibold text-purple-800">New Customers</h3>
-              </div>
-              <div className="bg-white/80 rounded-lg p-3 border border-purple-100">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-600">
-                    Registered Today
-                  </span>
-                  <span className="text-2xl font-bold text-purple-700">
-                    {typeof customerData === "object"
-                      ? customerData.count || customerData.customerCount
-                      : customerData}
+                    {(() => {
+                      if (typeof message.content === "object" && message.content !== null) {
+                        if (Array.isArray(message.content)) {
+                          return "0";
+                        }
+                        
+                        const content = message.content as Record<string, unknown>;
+                        if ('count' in content && typeof content.count === 'number') {
+                          return content.count;
+                        }
+                        if ('orderCount' in content && typeof content.orderCount === 'number') {
+                          return content.orderCount;
+                        }
+                        return "0";
+                      }
+                      return String(message.content);
+                    })()}
                   </span>
                 </div>
               </div>
@@ -173,7 +465,6 @@ const ChatbotBox: React.FC<ChatbotBoxProps> = ({ token }) => {
           );
 
         case Enum_BotActionCode.GET_PENDING_ORDERS:
-          const pendingData = message.content as any;
           return (
             <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4 shadow-sm">
               <div className="flex items-center space-x-2 mb-3">
@@ -190,88 +481,113 @@ const ChatbotBox: React.FC<ChatbotBoxProps> = ({ token }) => {
                     Awaiting Processing
                   </span>
                   <span className="text-2xl font-bold text-orange-700">
-                    {typeof pendingData === "object"
-                      ? pendingData.count || pendingData.pendingCount
-                      : pendingData}
+                    {(() => {
+                      if (typeof message.content === "object" && message.content !== null) {
+                        if (Array.isArray(message.content)) {
+                          return "0";
+                        }
+                        
+                        const content = message.content as Record<string, unknown>;
+                        if ('count' in content && typeof content.count === 'number') {
+                          return content.count;
+                        }
+                        if ('pendingCount' in content && typeof content.pendingCount === 'number') {
+                          return content.pendingCount;
+                        }
+                        return "0";
+                      }
+                      return String(message.content);
+                    })()}
                   </span>
                 </div>
               </div>
-              {typeof pendingData === "object" && pendingData.message && (
-                <div className="mt-2 text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                  {pendingData.message}
-                </div>
-              )}
+              {(() => {
+                if (typeof message.content === "object" && 
+                    message.content !== null && 
+                    !Array.isArray(message.content)) {
+                  const content = message.content as Record<string, unknown>;
+                  if ('message' in content && typeof content.message === 'string') {
+                    return (
+                      <div className="mt-2 text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                        {content.message}
+                      </div>
+                    );
+                  }
+                }
+                return null;
+              })()}
             </div>
           );
 
         case Enum_BotActionCode.FIND_ORDER_BY_ID:
-          const orderInfo = message.content as any;
-          return (
-            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center space-x-2 mb-3">
-                <div className="p-2 bg-indigo-100 rounded-lg">
-                  <Search className="w-4 h-4 text-indigo-600" />
+          if (isOrderData(message.content)) {
+            return (
+              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center space-x-2 mb-3">
+                  <div className="p-2 bg-indigo-100 rounded-lg">
+                    <Search className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <h3 className="font-semibold text-indigo-800">Order Details</h3>
                 </div>
-                <h3 className="font-semibold text-indigo-800">Order Details</h3>
-              </div>
 
-              {typeof orderInfo === "object" && orderInfo.id ? (
                 <div className="space-y-3">
                   <div className="bg-white/80 rounded-lg p-3 border border-indigo-100">
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div>
                         <span className="text-gray-500">Order ID:</span>
                         <p className="font-semibold text-indigo-700">
-                          #{orderInfo.id}
+                          #{message.content.id}
                         </p>
                       </div>
                       <div>
                         <span className="text-gray-500">Status:</span>
                         <p className="font-semibold capitalize">
-                          {orderInfo.status || "N/A"}
+                          {message.content.status || "N/A"}
                         </p>
                       </div>
                       <div>
                         <span className="text-gray-500">Customer:</span>
                         <p className="font-semibold">
-                          {orderInfo.customer_name ||
-                            orderInfo.customer_id ||
+                          {message.content.customer_name ||
+                            message.content.customer_id ||
                             "N/A"}
                         </p>
                       </div>
                       <div>
                         <span className="text-gray-500">Total:</span>
                         <p className="font-semibold text-green-600">
-                          {orderInfo.total_amount
-                            ? formatCurrency(orderInfo.total_amount)
+                          {message.content.total_amount
+                            ? formatCurrency(message.content.total_amount)
                             : "N/A"}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  {orderInfo.restaurant_name && (
+                  {message.content.restaurant_name && (
                     <div className="bg-white/60 rounded-lg p-2 border border-indigo-100">
                       <div className="flex items-center space-x-2">
                         <MapPin className="w-4 h-4 text-indigo-600" />
                         <span className="text-sm font-medium">
-                          {orderInfo.restaurant_name}
+                          {message.content.restaurant_name}
                         </span>
                       </div>
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="bg-white/80 rounded-lg p-3 border border-indigo-100">
-                  <span className="text-sm text-gray-600">
-                    {typeof orderInfo === "string"
-                      ? orderInfo
-                      : "Order information not available"}
-                  </span>
-                </div>
-              )}
-            </div>
-          );
+              </div>
+            );
+          } else {
+            return (
+              <div className="bg-white/80 rounded-lg p-3 border border-indigo-100">
+                <span className="text-sm text-gray-600">
+                  {typeof message.content === "string"
+                    ? message.content
+                    : "Order information not available"}
+                </span>
+              </div>
+            );
+          }
 
         default:
           // Fallback for other action results
@@ -280,14 +596,19 @@ const ChatbotBox: React.FC<ChatbotBoxProps> = ({ token }) => {
               <span className="text-gray-800 text-sm">
                 {typeof message.content === "object"
                   ? JSON.stringify(message.content, null, 2)
-                  : (message.content as string)}
+                  : String(message.content)}
               </span>
             </div>
           );
       }
     }
 
-    return <span className="text-sm">{message.content as string}</span>;
+    // Default text rendering
+    return <span className="text-sm">
+      {typeof message.content === "string" 
+        ? message.content 
+        : JSON.stringify(message.content)}
+    </span>;
   };
 
   const formatTime = (timestamp: number) => {
@@ -303,71 +624,6 @@ const ChatbotBox: React.FC<ChatbotBoxProps> = ({ token }) => {
       currency: "USD",
     }).format(amount);
   };
-
-  const RevenueCard: React.FC<{ data: RevenueData }> = ({ data }) => (
-    <div className="bg-gradient-to-br  from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 shadow-sm">
-      <div className="flex items-center space-x-2 mb-3">
-        <div className="p-2 bg-green-100 rounded-lg">
-          <TrendingUp className="w-4 h-4 text-green-600" />
-        </div>
-        <h3 className="font-semibold text-green-800">Revenue Summary</h3>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3">
-        {/* Main Revenue Display */}
-        <div className="bg-white/80 rounded-lg p-3 border border-green-100">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <DollarSign className="w-5 h-5 text-green-600" />
-              <span className="text-sm font-medium text-gray-600">
-                Total Revenue
-              </span>
-            </div>
-            <span className="text-2xl font-bold text-green-700">
-              {formatCurrency(data.revenue)}
-            </span>
-          </div>
-        </div>
-
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-white/60 rounded-lg p-3 border border-green-100">
-            <div className="flex items-center space-x-2">
-              <ShoppingCart className="w-4 h-4 text-blue-600" />
-              <div>
-                <p className="text-xs text-gray-500">Orders</p>
-                <p className="font-semibold text-gray-800">{data.orderCount}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white/60 rounded-lg p-3 border border-green-100">
-            <div className="flex items-center space-x-2">
-              <Calendar className="w-4 h-4 text-purple-600" />
-              <div>
-                <p className="text-xs text-gray-500">Date</p>
-                <p className="font-semibold text-gray-800 text-xs">
-                  {data.date}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Average Order Value */}
-        <div className="bg-white/60 rounded-lg p-2 border border-green-100">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">Avg. Order Value</span>
-            <span className="font-medium text-gray-800">
-              {data.orderCount > 0
-                ? formatCurrency(data.revenue / data.orderCount)
-                : "$0.00"}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
   if (!isOpen) {
     return (
@@ -428,7 +684,7 @@ const ChatbotBox: React.FC<ChatbotBoxProps> = ({ token }) => {
         <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
           {messages.length === 0 && (
             <div className="text-center text-gray-500 text-sm">
-              Welcome! Type a message or click "Get Help" to start.
+              Welcome! Type a message or click &quot;Get Help&quot; to start.
             </div>
           )}
 

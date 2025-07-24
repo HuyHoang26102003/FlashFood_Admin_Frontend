@@ -371,7 +371,40 @@ export default function InternalChatPage() {
 
         adminChatSocket.onGroupCreated(socket, (group) => {
           console.log("Group created:", group);
-          setChatRooms((prev) => [group, ...prev]);
+          
+          // Refresh the entire chat rooms list instead of just adding the new group
+          console.log("Re-fetching all chats due to group creation");
+          loadChatRooms();
+          
+          // Auto-select the newly created group
+          setTimeout(() => {
+            // The group object might have a different structure than AdminChatRoom
+            interface GroupCreatedResponse {
+              id?: string;
+              groupId?: string;
+              groupName?: string;
+            }
+            
+            const groupResponse = group as unknown as GroupCreatedResponse;
+            const groupId = groupResponse.id || groupResponse.groupId;
+            
+            if (groupId) {
+              // Find the complete group data from the refreshed list
+              setChatRooms((prevRooms) => {
+                const newGroup = prevRooms.find(r => r.id === groupId);
+                if (newGroup) {
+                  // Select the group and fetch its messages
+                  selectRoom(newGroup);
+                }
+                return prevRooms;
+              });
+            }
+          }, 500); // Small delay to ensure chat rooms are loaded
+          
+          toast({
+            title: "Group Created",
+            description: `${group?.groupName || "New group"} has been created successfully.`
+          });
         });
 
         adminChatSocket.onUserJoinedGroup(socket, (data) => {
@@ -383,7 +416,7 @@ export default function InternalChatPage() {
             return;
           }
 
-          const { groupId, userId, userName, userRole } = data;
+          const { groupId, userName } = data;
 
           // Show notification that someone joined the group
           toast({
@@ -414,7 +447,7 @@ export default function InternalChatPage() {
             return;
           }
 
-          const { groupId, userId, userName } = data;
+          const { groupId, userName } = data;
 
           // Show notification that someone left the group
           toast({
@@ -1113,7 +1146,9 @@ export default function InternalChatPage() {
               <CreateGroupDialog
                 socket={socketRef.current}
                 onGroupCreated={(group) => {
-                  setChatRooms((prev) => [group, ...prev]);
+                  // Don't directly add the group to the list, we'll get it from the server
+                  console.log("Group created via dialog, waiting for server update", group);
+                  // Toast notification will be shown by the onGroupCreated event handler
                 }}
                 trigger={
                   <Button variant="ghost" size="sm" className="p-2 ">
@@ -1207,7 +1242,7 @@ export default function InternalChatPage() {
                           </p>
                           {invite.message && (
                             <p className="text-xs text-gray-500 italic mb-2 p-2 bg-gray-50 rounded">
-                              "{invite.message}"
+                              &ldquo;{invite.message}&rdquo;
                             </p>
                           )}
                           <div className="flex items-center justify-between">
@@ -1293,7 +1328,7 @@ export default function InternalChatPage() {
                       <h3 className="font-medium text-gray-900 truncate">
                         {room.type === "ADMIN_GROUP"
                           ? room.groupName
-                          : room.participants.find(
+                          : room.participants?.find(
                               (p) => p.userId !== currentUser?.id
                             )?.name || "Direct Chat"}
                       </h3>
@@ -1358,7 +1393,7 @@ export default function InternalChatPage() {
                     <h2 className="font-semibold text-gray-900">
                       {selectedRoom.type === "ADMIN_GROUP"
                         ? selectedRoom.groupName
-                        : selectedRoom.participants.find(
+                        : selectedRoom.participants?.find(
                             (p) => p.userId !== currentUser?.id
                           )?.name || "Direct Chat"}
                     </h2>

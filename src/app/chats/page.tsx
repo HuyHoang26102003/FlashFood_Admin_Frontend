@@ -312,14 +312,19 @@ export default function SupportChatPage() {
 
     const handleCustomerMessage = (data: any) => {
       console.log("Customer message received:", data);
-
+      
+      // Determine if the message is actually an image based on content
+      const isCloudinaryImage = typeof data.message === 'string' && 
+        data.message.startsWith('https://res.cloudinary.com');
+      
       const message: SupportMessage = {
         id: `msg-${Date.now()}`,
         sessionId: data.sessionId,
         senderId: data.customerId,
         senderType: data.customerType,
         content: data.message,
-        messageType: data.messageType || "text",
+        // Override messageType to "image" if it's a Cloudinary URL
+        messageType: (data.messageType === "image" || isCloudinaryImage) ? "image" : "text",
         timestamp: data.timestamp,
         metadata: data.metadata,
       };
@@ -522,11 +527,16 @@ export default function SupportChatPage() {
     }
 
     const messageContent = currentMessage; // Store before clearing
+    
+    // Determine if the message is an image URL
+    const isCloudinaryImage = messageContent.startsWith('https://res.cloudinary.com');
+    const messageType = isCloudinaryImage ? "image" : "text";
 
     try {
       console.log("Sending agent message:", {
         sessionId: selectedSession.sessionId,
         message: messageContent,
+        messageType,
         socketConnected: socket.connected,
       });
 
@@ -536,7 +546,7 @@ export default function SupportChatPage() {
         senderId: currentUser?.id || "agent",
         senderType: "CUSTOMER_CARE_REPRESENTATIVE",
         content: messageContent,
-        messageType: "text",
+        messageType,
         timestamp: new Date().toISOString(),
         isTemporary: true,
       };
@@ -549,7 +559,7 @@ export default function SupportChatPage() {
       socket.emit("sendAgentMessage", {
         sessionId: selectedSession.sessionId,
         message: messageContent,
-        messageType: "text",
+        messageType,
       });
 
       console.log("Agent message event emitted successfully");
@@ -922,7 +932,19 @@ export default function SupportChatPage() {
                           : "bg-white text-gray-900"
                       }`}
                     >
-                      <p className="text-sm">{message.content}</p>
+                      {message.messageType === "image" || 
+                       (message.messageType === "text" && 
+                        message.content.startsWith("https://res.cloudinary.com")) ? (
+                        <div className="mb-1">
+                          <img 
+                            src={message.content} 
+                            alt="Customer shared image" 
+                            className="max-w-full rounded-md max-h-64 object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-sm">{message.content}</p>
+                      )}
 
                       {message.options && (
                         <div className="mt-2 space-y-1">

@@ -18,11 +18,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, Users } from "lucide-react";
 import { adminChatSocket } from "@/lib/adminChatSocket";
-import { CreateGroupPayload } from "@/types/admin-chat";
+import { CreateGroupPayload, AdminChatRoom } from "@/types/admin-chat";
+import { Socket } from "socket.io-client";
 
 interface CreateGroupDialogProps {
-  socket: any;
-  onGroupCreated?: (group: any) => void;
+  socket: Socket | null;
+  onGroupCreated?: (group: Partial<AdminChatRoom>) => void;
   trigger?: React.ReactNode;
 }
 
@@ -116,9 +117,35 @@ export default function CreateGroupDialog({
         allowedRoles: formData.allowedRoles,
       };
 
-      const group = await adminChatSocket.createAdminGroup(socket, payload);
+      if (!socket) {
+        console.error("Socket is not initialized");
+        return;
+      }
 
-      onGroupCreated?.(group);
+      const response = await adminChatSocket.createAdminGroup(socket, payload);
+      console.log("Group created successfully:", response);
+      
+      // Pass the response to the parent component
+      if (response) {
+        // Create a minimal group object that matches the AdminChatRoom structure
+        const groupData: Partial<AdminChatRoom> = {
+          id: (response as unknown as { id?: string; groupId?: string }).id || 
+              (response as unknown as { id?: string; groupId?: string }).groupId || 
+              '',
+          groupName: formData.groupName,
+          type: "ADMIN_GROUP",
+          participants: [],
+          lastActivity: new Date(),
+          createdAt: new Date(),
+          tags: formData.tags,
+          isPublic: formData.isPublic,
+          maxParticipants: formData.maxParticipants,
+          allowedRoles: formData.allowedRoles,
+        };
+        
+        onGroupCreated?.(groupData);
+      }
+      
       setOpen(false);
 
       // Reset form

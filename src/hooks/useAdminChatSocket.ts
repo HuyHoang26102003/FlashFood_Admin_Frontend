@@ -18,9 +18,44 @@ export interface RevenueData {
   date: string;
 }
 
+export interface CustomerInfo {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+export interface CustomerData {
+  message: string;
+  customers: CustomerInfo[];
+  count?: number;
+  customerCount?: number;
+}
+
+export interface OrderData {
+  id: string;
+  status: string;
+  details?: string;
+  customer_name?: string;
+  customer_id?: string;
+  total_amount?: number;
+  restaurant_name?: string;
+  count?: number;
+  orderCount?: number;
+  message?: string;
+  pendingCount?: number;
+}
+
+export type MessageContent = 
+  | string 
+  | OptionItem[] 
+  | RevenueData 
+  | OrderData 
+  | CustomerData 
+  | Record<string, unknown>;
+
 export interface ChatMessage {
   id: string;
-  content: string | OptionItem[] | RevenueData | any;
+  content: MessageContent;
   type: ResponseType;
   action_code?: Enum_BotActionCode;
   timestamp: number;
@@ -34,7 +69,7 @@ export interface OptionItem {
 }
 
 export interface BotResponse {
-  content: string | OptionItem[] | RevenueData | any;
+  content: MessageContent;
   type: ResponseType;
   action_code?: Enum_BotActionCode;
 }

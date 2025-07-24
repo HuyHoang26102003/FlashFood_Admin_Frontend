@@ -35,7 +35,10 @@ interface AdminUser {
   last_name: string;
   email: string;
   role: string;
-  avatar?: string;
+  avatar?: {
+    url: string;
+    key: string
+  };
 }
 
 const useDebounce = (value: string, delay: number) => {
@@ -190,7 +193,7 @@ export default function InviteToGroupDialog({
                   >
                     <div className="flex items-center space-x-3">
                       <Avatar>
-                        <AvatarImage src={user.avatar} />
+                        <AvatarImage src={user?.avatar?.url} />
                         <AvatarFallback>
                           {user.first_name[0]}
                           {user.last_name[0]}

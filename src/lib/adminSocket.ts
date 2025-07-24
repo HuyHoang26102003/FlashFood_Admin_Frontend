@@ -10,6 +10,46 @@ export interface NewlyCreatedEntityPayload {
 }
 let adminSocketInstance: Socket | null = null;
 
+// Throttle mechanism to prevent duplicate events
+const THROTTLE_DURATION = 5000; // 5 seconds
+let isThrottled = false;
+let lastEntityType: string | null = null;
+
+// Process event with throttling
+const processEventWithThrottling = (
+  data: NewlyCreatedEntityPayload,
+  callback: (data: NewlyCreatedEntityPayload) => void
+) => {
+  const entityType = data.entity_name;
+  const entityEmail = data.entity_email || 'no email';
+  
+  console.log(`[SOCKET THROTTLE] 🔄 Processing event: ${entityType} (${entityEmail}), throttled: ${isThrottled}, lastType: ${lastEntityType}`);
+  
+  // If throttled and same entity type, block the event
+  if (isThrottled && entityType === lastEntityType) {
+    console.log(`[SOCKET THROTTLE] 🛑 BLOCKED duplicate ${entityType} event (throttled)`);
+    return;
+  }
+  
+  // Not throttled or different entity type, process the event
+  console.log(`[SOCKET THROTTLE] ✅ ALLOWED ${entityType} event (will show notification and increment counter)`);
+  
+  // CRITICAL: Call the callback BEFORE setting the throttle
+  // This ensures the event is processed by AdminDashboard
+  callback(data);
+  
+  // Set throttle for this entity type AFTER processing the event
+  lastEntityType = entityType;
+  isThrottled = true;
+  
+  // Release throttle after duration
+  setTimeout(() => {
+    console.log(`[SOCKET THROTTLE] 🔓 Released throttle for ${entityType}`);
+    isThrottled = false;
+    lastEntityType = null;
+  }, THROTTLE_DURATION);
+};
+
 export const createAdminSocket = (token: string | null) => {
   if (!token) {
     console.error("No token provided, cannot create admin socket");
@@ -92,14 +132,16 @@ export const createAdminSocket = (token: string | null) => {
   adminSocketInstance.on(
     "newly_created_entity_notification",
     (data: NewlyCreatedEntityPayload) => {
-      console.log(
-        `[Admin Socket] Received entity notification:
-        - Entity Name: ${data.entity_name}
-        - Message: ${data.message}
-        - Event Type: ${data.event_type}
-        - Timestamp: ${new Date(data.timestamp).toLocaleString()}`,
-        data
-      );
+      processEventWithThrottling(data, (processedData) => {
+        console.log(
+          `[Admin Socket] Received entity notification:
+        - Entity Name: ${processedData.entity_name}
+        - Message: ${processedData.message}
+        - Event Type: ${processedData.event_type}
+        - Timestamp: ${new Date(processedData.timestamp).toLocaleString()}`,
+          processedData
+        );
+      });
     }
   );
 
@@ -121,8 +163,30 @@ export const adminSocket = {
     callback: (data: NewlyCreatedEntityPayload) => void
   ) => {
     if (adminSocketInstance) {
-      adminSocketInstance.on("newly_created_entity_notification", callback);
+      console.log(`[adminSocket] 🔌 Registering onNewlyCreatedEntity handler`, callback);
+      
+      // First, remove any existing listeners to avoid duplicates
+      adminSocketInstance.off("newly_created_entity_notification");
+      
+      // Then register the new listener with throttling
+      adminSocketInstance.on("newly_created_entity_notification", (data) => {
+        console.log(`[adminSocket] 📩 Raw event received: ${data.entity_name}`);
+        
+        // CRITICAL FIX: Ensure we're calling the callback directly for debugging
+        try {
+          processEventWithThrottling(data, (processedData) => {
+            console.log(`[adminSocket] 📤 Calling handler for: ${processedData.entity_name}`);
+            callback(processedData);
+          });
+        } catch (error) {
+          console.error(`[adminSocket] ❌ Error processing event:`, error);
+        }
+      });
+      
+      return true;
     }
+    console.warn(`[adminSocket] ⚠️ Cannot register handler - socket not connected`);
+    return false;
   },
 
   offNewlyCreatedEntity: (
