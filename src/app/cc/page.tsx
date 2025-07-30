@@ -389,16 +389,6 @@ const Page = () => {
             </PopoverTrigger>
             <PopoverContent className="w-32">
               <div className="grid gap-4">
-                {/* <Button
-                  variant="ghost"
-                  className="flex items-center justify-start"
-                  onClick={() => {
-                    // Handle view details
-                  }}
-                >
-                  <Eye className="mr-2 h-4 w-4" />
-                  Details
-                </Button> */}
                 <Button
                   variant="ghost"
                   className="flex items-center justify-start"
@@ -486,7 +476,7 @@ const Page = () => {
     const pollInterval = setInterval(() => {
       console.log("🔄 Polling customer care data...");
       fetchCustomerCareForPolling();
-    }, 30000); // 30 seconds
+    }, 30000);
 
     // Cleanup interval on unmount
     return () => {

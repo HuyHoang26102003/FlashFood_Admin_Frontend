@@ -4,7 +4,6 @@ import DashboardCustomerCare from "@/components/DashboardCustomerCare";
 import AboutUsPage from "@/components/AboutUsPage";
 import { useAdminStore } from "@/stores/adminStore";
 import { useCustomerCareStore } from "@/stores/customerCareStore";
-import { Spinner } from "@/components/Spinner";
 
 export default function Home() {
   const adminLoggedInAs = useAdminStore((state) => state.user?.logged_in_as);

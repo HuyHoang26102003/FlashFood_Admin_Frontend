@@ -70,7 +70,7 @@ interface MentionUser {
 }
 
 interface TaggedUser {
-  id: string; // This will be the userId
+  id: string;
   name: string;
   startIndex: number;
   endIndex: number;
@@ -371,11 +371,11 @@ export default function InternalChatPage() {
 
         adminChatSocket.onGroupCreated(socket, (group) => {
           console.log("Group created:", group);
-          
+
           // Refresh the entire chat rooms list instead of just adding the new group
           console.log("Re-fetching all chats due to group creation");
           loadChatRooms();
-          
+
           // Auto-select the newly created group
           setTimeout(() => {
             // The group object might have a different structure than AdminChatRoom
@@ -384,14 +384,14 @@ export default function InternalChatPage() {
               groupId?: string;
               groupName?: string;
             }
-            
+
             const groupResponse = group as unknown as GroupCreatedResponse;
             const groupId = groupResponse.id || groupResponse.groupId;
-            
+
             if (groupId) {
               // Find the complete group data from the refreshed list
               setChatRooms((prevRooms) => {
-                const newGroup = prevRooms.find(r => r.id === groupId);
+                const newGroup = prevRooms.find((r) => r.id === groupId);
                 if (newGroup) {
                   // Select the group and fetch its messages
                   selectRoom(newGroup);
@@ -400,10 +400,12 @@ export default function InternalChatPage() {
               });
             }
           }, 500); // Small delay to ensure chat rooms are loaded
-          
+
           toast({
             title: "Group Created",
-            description: `${group?.groupName || "New group"} has been created successfully.`
+            description: `${
+              group?.groupName || "New group"
+            } has been created successfully.`,
           });
         });
 
@@ -871,7 +873,7 @@ export default function InternalChatPage() {
           }, 100);
 
           if (response === "ACCEPT") {
-            // For accept, we'll get the room via onJoinedGroup event
+            // For accept, get the room via onJoinedGroup event
             // Just show immediate feedback
             toast({
               title: "Invitation Accepted",
@@ -1146,8 +1148,11 @@ export default function InternalChatPage() {
               <CreateGroupDialog
                 socket={socketRef.current}
                 onGroupCreated={(group) => {
-                  // Don't directly add the group to the list, we'll get it from the server
-                  console.log("Group created via dialog, waiting for server update", group);
+                  //get add the group to the list from the server
+                  console.log(
+                    "Group created via dialog, waiting for server update",
+                    group
+                  );
                   // Toast notification will be shown by the onGroupCreated event handler
                 }}
                 trigger={
@@ -1426,7 +1431,6 @@ export default function InternalChatPage() {
                     >
                       <InviteToGroupDialog
                         onInviteSent={() => {
-                          // can add logic here to refetch room data or show a toast
                           console.log("Invitations sent!");
                         }}
                         socket={socketRef.current}
@@ -1765,7 +1769,6 @@ export default function InternalChatPage() {
                       size="sm"
                       className="w-full justify-start"
                       onClick={() => {
-                        // TODO: Implement file upload
                         toast({
                           title: "Coming Soon",
                           description:

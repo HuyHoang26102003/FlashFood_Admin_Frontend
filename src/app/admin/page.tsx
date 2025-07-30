@@ -122,7 +122,7 @@ const Page = () => {
   }, []);
 
   const handleAdjustPermissions = (admin: Admin) => {
-    // Store both original and current permissions
+    // Store current permissions
     const adminPermissions = [...admin.permissions];
     setDialogState({
       isOpen: true,
@@ -176,7 +176,7 @@ const Page = () => {
     // Only send the permissions that were actually changed by the user
     const changedPermissions = dialogState.changedPermissions;
 
-    // We need to know which permissions to add and which to remove
+    // which permissions add/ remove
     const permissionsToUpdate = dialogState.changedPermissions.map(
       (permission) => {
         return {

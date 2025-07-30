@@ -55,8 +55,8 @@ export type Promotion = {
   name: string;
   description: string;
   promotion_cost_price: number;
-  start_date: number; // epoch timestamp
-  end_date: number; // epoch timestamp
+  start_date: number;
+  end_date: number;
   discount_type: "PERCENTAGE" | "FIXED";
   discount_value: number;
   minimum_order_value: number;
@@ -65,7 +65,6 @@ export type Promotion = {
   avatar?: { url: string; key: string };
 };
 
-// Add this interface before the Page component
 interface PromotionDetails {
   id: string;
   name: string;
@@ -351,13 +350,11 @@ const Page = () => {
     fetchPromotions();
   }, [currentPage]);
 
-  // Handle mở modal edit
   const handleEdit = (promotion: Promotion) => {
     setSelectedPromotion(promotion);
     setOpenEdit(true);
   };
 
-  // Handle mở modal add
   const handleOpenAdd = () => {
     setNewPromotion({
       id: "",
@@ -365,7 +362,7 @@ const Page = () => {
       description: "",
       promotion_cost_price: 0,
       start_date: Math.floor(Date.now() / 1000),
-      end_date: Math.floor(Date.now() / 1000) + 86400, // +1 day
+      end_date: Math.floor(Date.now() / 1000) + 86400,
       discount_type: "PERCENTAGE",
       discount_value: 0,
       minimum_order_value: 0,
@@ -375,7 +372,6 @@ const Page = () => {
     setOpenAdd(true);
   };
 
-  // Handle thay đổi giá trị trong form (edit)
   const handleChangeEdit = (
     field: keyof Promotion,
     value: string | number | string[]
@@ -383,7 +379,6 @@ const Page = () => {
     setSelectedPromotion((prev) => (prev ? { ...prev, [field]: value } : null));
   };
 
-  // Handle thay đổi giá trị trong form (add)
   const handleChangeAdd = (
     field: keyof Promotion,
     value: string | number | string[]
@@ -391,7 +386,6 @@ const Page = () => {
     setNewPromotion((prev) => (prev ? { ...prev, [field]: value } : null));
   };
 
-  // Handle submit chỉnh sửa promotion
   const handleSaveEdit = async () => {
     if (!selectedPromotion) return;
     try {
@@ -423,7 +417,6 @@ const Page = () => {
     }
   };
 
-  // Handle submit thêm promotion mới
   const handleSaveAdd = async () => {
     if (!newPromotion) return;
     try {
@@ -467,8 +460,7 @@ const Page = () => {
       } else {
         toast({
           title: "Error",
-          description:
-            response.data.EM || "Failed to update promotion status.",
+          description: response.data.EM || "Failed to update promotion status.",
           variant: "destructive",
         });
       }
@@ -484,7 +476,6 @@ const Page = () => {
     }
   };
 
-  // Handle upload avatar lên Cloudinary
   const handleImageUpload = async (isEdit: boolean, files: FileList) => {
     if (!files || files.length === 0) return;
     const file = files[0];
@@ -603,7 +594,6 @@ const Page = () => {
         />
       </div>
 
-      {/* Modal chỉnh sửa Promotion */}
       {selectedPromotion && (
         <Dialog open={openEdit} onOpenChange={setOpenEdit}>
           <DialogContent className="h-[90vh] w-full overflow-y-scroll">
@@ -796,7 +786,10 @@ const Page = () => {
                     <FallbackImage
                       height={32}
                       width={32}
-                      src={newPromotion?.avatar?.url ??selectedPromotion.avatar.url}
+                      src={
+                        newPromotion?.avatar?.url ??
+                        selectedPromotion.avatar.url
+                      }
                       alt="preview"
                       className="w-12 h-12 rounded-md"
                     />
@@ -817,7 +810,6 @@ const Page = () => {
         </Dialog>
       )}
 
-      {/* Modal thêm Promotion mới */}
       {newPromotion && (
         <Dialog open={openAdd} onOpenChange={setOpenAdd}>
           <DialogContent className="h-[90vh] w-full overflow-y-scroll">
@@ -1010,7 +1002,10 @@ const Page = () => {
                     <FallbackImage
                       height={32}
                       width={32}
-                      src={newPromotion?.avatar?.url ?? selectedPromotion?.avatar?.url}
+                      src={
+                        newPromotion?.avatar?.url ??
+                        selectedPromotion?.avatar?.url
+                      }
                       alt="preview"
                       className="w-12 h-12 rounded-md"
                     />
@@ -1031,7 +1026,6 @@ const Page = () => {
         </Dialog>
       )}
 
-      {/* Modal Details Promotion */}
       <Dialog open={openDetails} onOpenChange={setOpenDetails}>
         <DialogContent className="h-[90vh] w-full overflow-y-scroll">
           <DialogHeader>
@@ -1040,7 +1034,13 @@ const Page = () => {
           <Spinner isVisible={isDetailsLoading} isOverlay />
           {selectedPromotionDetails && (
             <>
-            <FallbackImage src={selectedPromotionDetails?.avatar?.url ?? ""} alt="avatar" width={100} className="w-full h-48 rounded-md" height={100} />
+              <FallbackImage
+                src={selectedPromotionDetails?.avatar?.url ?? ""}
+                alt="avatar"
+                width={100}
+                className="w-full h-48 rounded-md"
+                height={100}
+              />
               <div className="grid grid-cols-2 gap-4 py-4">
                 <div className="">
                   <Label className="text-right font-semibold">Name</Label>

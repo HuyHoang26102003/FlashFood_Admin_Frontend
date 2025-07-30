@@ -1,4 +1,3 @@
-// src/app/notifications-manager/page.tsx
 "use client";
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +37,6 @@ import { Spinner } from "@/components/Spinner";
 import { SimplePagination } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
 
-// Định nghĩa type cho Notification
 interface Avatar {
   url: string;
   key: string;
@@ -48,7 +46,7 @@ interface TargetContent {
   avatar?: Avatar;
   title: string;
   desc: string;
-  image?: Avatar; // Thay đổi từ string sang Avatar để đồng nhất với upload
+  image?: Avatar;
   link?: string;
 }
 
@@ -57,7 +55,7 @@ interface Notification {
   avatar: Avatar;
   title: string;
   desc: string;
-  image?: Avatar; // Thay đổi từ string sang Avatar
+  image?: Avatar;
   link?: string;
   target_user: string[];
   target_user_id?: string | null;
@@ -115,30 +113,26 @@ const Page = () => {
     fetchNotifications();
   }, [currentPage]);
 
-  // Handle mở modal edit
   const handleEdit = (notification: Notification) => {
     setSelectedNotification(notification);
     setOpenEdit(true);
   };
 
-  // Handle mở modal add (broadcast)
   const handleOpenAdd = () => {
     setNewBroadcast({
       target_user: ["CUSTOMER"],
       created_by_id: adminZ?.id || "",
       content: {
         customer: {
-          // avatar: { url: "", key: "" },
           title: "",
           desc: "",
-          image: { url: "", key: "" }, // Khởi tạo image như Avatar
+          image: { url: "", key: "" },
         },
       },
     });
     setOpenAdd(true);
   };
 
-  // Handle submit chỉnh sửa notification
   const handleSaveEdit = async () => {
     if (!selectedNotification) return;
     try {
@@ -148,7 +142,7 @@ const Page = () => {
           avatar: { url: selectedNotification.avatar.url, key: "abc" },
           title: selectedNotification.title,
           desc: selectedNotification.desc,
-          image: selectedNotification.image?.url, // Gửi URL của image
+          image: selectedNotification.image?.url,
           link: selectedNotification.link,
           target_user: selectedNotification.target_user,
         }
@@ -182,13 +176,11 @@ const Page = () => {
     if (!newBroadcast) return;
 
     try {
-      // Tạo bản sao của newBroadcast
       const updatedBroadcast = {
         ...newBroadcast,
         avatar: { url: newBroadcast.avatar.url, key: "abc" },
       };
 
-      // Lọc content để chỉ giữ lại các role trong target_user
       const filteredContent: typeof updatedBroadcast.content = {};
       updatedBroadcast.target_user.forEach((target) => {
         const roleKey =
@@ -196,11 +188,10 @@ const Page = () => {
         const roleContent = newBroadcast.content[roleKey];
 
         if (roleContent) {
-          // Nếu image.url rỗng hoặc không tồn tại, set image thành undefined
           const updatedRoleContent = {
             ...roleContent,
-            avatar: roleContent.avatar?.url || "", // Gửi URL của avatar
-            image: roleContent.image?.url, // Gửi URL của image
+            avatar: roleContent.avatar?.url || "",
+            image: roleContent.image?.url,
             title: roleContent.title || "",
             desc: roleContent.desc || "",
             link: roleContent.link || "",
@@ -209,10 +200,8 @@ const Page = () => {
         }
       });
 
-      // Cập nhật updatedBroadcast chỉ với content đã lọc
       updatedBroadcast.content = filteredContent;
 
-      // Gửi request với updatedBroadcast
       console.log("Request body:", JSON.stringify(updatedBroadcast, null, 2));
       const response = await axiosInstance.post(
         "/notifications/broadcast",
@@ -244,7 +233,6 @@ const Page = () => {
     }
   };
 
-  // Handle thay đổi giá trị trong form (edit)
   const handleChangeEdit = (
     field: keyof Notification,
     value: string | string[] | Avatar
@@ -254,7 +242,6 @@ const Page = () => {
     );
   };
 
-  // Handle thay đổi giá trị trong form (add)
   const handleChangeAdd = (
     target: string,
     field: keyof TargetContent,
@@ -278,7 +265,6 @@ const Page = () => {
     );
   };
 
-  // Handle thay đổi target_user trong broadcast
   const handleTargetUserChange = (value: string[]) => {
     setNewBroadcast((prev) => {
       if (!prev) return null;
@@ -289,7 +275,7 @@ const Page = () => {
             avatar: { url: "", key: "" },
             title: "",
             desc: "",
-            image: { url: "", key: "" }, // Khởi tạo image như Avatar
+            image: { url: "", key: "" },
           };
         }
       });
@@ -303,11 +289,10 @@ const Page = () => {
     }
   };
 
-  // Handle upload ảnh lên Cloudinary
   const handleImageUpload = async (
     isEdit: boolean,
-    target: string | null, // null cho edit, target cho add
-    field: "avatar" | "image", // Phân biệt avatar hay image
+    target: string | null,
+    field: "avatar" | "image",
     files: FileList
   ) => {
     if (!files || files.length === 0) {
@@ -407,7 +392,6 @@ const Page = () => {
     }
   };
 
-  // Định nghĩa columns cho react-table
   const columns: ColumnDef<Notification>[] = [
     {
       id: "select",
@@ -558,7 +542,6 @@ const Page = () => {
         />
       </div>
 
-      {/* Modal chỉnh sửa notification */}
       {selectedNotification && (
         <Dialog open={openEdit} onOpenChange={setOpenEdit}>
           <DialogContent className="h-[90vh] w-screen overflow-y-scroll">
@@ -691,7 +674,6 @@ const Page = () => {
         </Dialog>
       )}
 
-      {/* Modal thêm broadcast notification */}
       {newBroadcast && (
         <Dialog open={openAdd} onOpenChange={setOpenAdd}>
           <DialogContent className="h-[90vh] w-screen overflow-y-scroll">

@@ -43,7 +43,6 @@ import { Spinner } from "@/components/Spinner";
 import { SimplePagination } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
 
-// Định nghĩa type cho FAQ
 interface AnswerItem {
   type: "text" | "image" | "image_row";
   value: string | { key: string; url: string } | { key: string; url: string }[];
@@ -97,13 +96,11 @@ const Page = () => {
     fetchFAQs();
   }, [currentPage]);
 
-  // Handle mở modal edit
   const handleEdit = (faq: FAQ) => {
     setSelectedFAQ(faq);
     setOpenEdit(true);
   };
 
-  // Handle mở modal add
   const handleOpenAdd = () => {
     setNewFAQ({
       id: "",
@@ -118,7 +115,6 @@ const Page = () => {
     setOpenAdd(true);
   };
 
-  // Handle submit chỉnh sửa FAQ
   const handleSaveEdit = async () => {
     if (!selectedFAQ) return;
     setIsEditing(true);
@@ -157,7 +153,6 @@ const Page = () => {
     }
   };
 
-  // Handle submit thêm FAQ mới
   const handleSaveAdd = async () => {
     if (!newFAQ) return;
     setIsAdding(true);
@@ -196,17 +191,14 @@ const Page = () => {
     }
   };
 
-  // Handle thay đổi giá trị trong form (edit)
   const handleChangeEdit = (field: keyof FAQ, value: string | string[]) => {
     setSelectedFAQ((prev) => (prev ? { ...prev, [field]: value } : null));
   };
 
-  // Handle thay đổi giá trị trong form (add)
   const handleChangeAdd = (field: keyof FAQ, value: string | string[]) => {
     setNewFAQ((prev) => (prev ? { ...prev, [field]: value } : null));
   };
 
-  // Handle thêm answer row
   const handleAddAnswerRow = (isEdit: boolean) => {
     const setter = isEdit ? setSelectedFAQ : setNewFAQ;
     setter((prev) =>
@@ -216,7 +208,6 @@ const Page = () => {
     );
   };
 
-  // Handle xóa answer row
   const handleDeleteAnswerRow = (isEdit: boolean, index: number) => {
     const setter = isEdit ? setSelectedFAQ : setNewFAQ;
     setter((prev) =>
@@ -226,7 +217,6 @@ const Page = () => {
     );
   };
 
-  // Handle thay đổi answer type/value
   const handleAnswerChange = (
     isEdit: boolean,
     index: number,
@@ -253,7 +243,6 @@ const Page = () => {
     });
   };
 
-  // Handle upload ảnh lên Cloudinary
   const handleImageUpload = async (
     isEdit: boolean,
     index: number,
@@ -348,7 +337,6 @@ const Page = () => {
     }
   };
 
-  // Định nghĩa columns cho react-table
   const columns: ColumnDef<FAQ>[] = [
     {
       id: "select",
@@ -619,7 +607,6 @@ const Page = () => {
         />
       </div>
 
-      {/* Modal chỉnh sửa FAQ */}
       {selectedFAQ && (
         <Dialog open={openEdit} onOpenChange={setOpenEdit}>
           <DialogContent className="h-[90vh] w-screen overflow-y-scroll">

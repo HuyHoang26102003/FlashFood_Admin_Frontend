@@ -214,57 +214,6 @@ The support chat system requires:
 - **Charts:** Recharts
 - **Icons:** Lucide React
 
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-- Access to the FlashFood backend API
-
-### Installation
-
-1. Clone the repository:
-
-```bash
-git clone <repository-url>
-cd Admin-Flashfood-web-frontend
-```
-
-2. Install dependencies:
-
-```bash
-npm install
-```
-
-3. Set up environment variables:
-
-```bash
-cp .env.example .env.local
-```
-
-4. Configure your environment variables in `.env.local`:
-
-```env
-NEXT_PUBLIC_API_URL=your_backend_api_url
-NEXT_PUBLIC_SOCKET_URL=your_socket_server_url
-```
-
-5. Run the development server:
-
-```bash
-npm run dev
-```
-
-6. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Building for Production
-
-```bash
-npm run build
-npm start
-```
-
 ## Project Structure
 
 ```
@@ -371,17 +320,6 @@ Different user roles have different permissions:
    - Check WebSocket connection status
    - Verify fchatgateway backend is running
 
-### Performance Tips
-
-- Use React.memo for expensive components
-- Implement proper pagination for large datasets
-- Optimize images and assets
-- Use proper error boundaries
-
 ## License
 
 This project is proprietary software for FlashFood internal use only.
-
-## Support
-
-For technical support or questions about the support chat system implementation, please contact the development team.

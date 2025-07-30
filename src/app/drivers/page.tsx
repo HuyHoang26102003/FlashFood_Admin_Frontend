@@ -172,7 +172,7 @@ export default function DriversPage() {
     const pollInterval = setInterval(() => {
       console.log("🔄 Polling drivers data...");
       fetchDriversForPolling();
-    }, 30000); // 30 seconds
+    }, 30000);
 
     // Cleanup interval on unmount
     return () => {
@@ -210,8 +210,7 @@ export default function DriversPage() {
       const response = await superAdminService.banAccount(
         selectedDriverId,
         "Driver",
-        banReason,
-        isUnbanning
+        banReason
       );
 
       if (response.EC === 0) {

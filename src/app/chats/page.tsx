@@ -40,7 +40,6 @@ import { useCustomerCareStore } from "@/stores/customerCareStore";
 import { useAdminStore } from "@/stores/adminStore";
 import { createSocket } from "@/lib/socket";
 import { formatDateToRelativeTime } from "@/utils/functions/formatRelativeTime";
-import { limitCharacters } from "@/utils/functions/stringFunc";
 import { useToast } from "@/hooks/use-toast";
 
 // Support Chat Types
@@ -240,7 +239,7 @@ export default function SupportChatPage() {
       console.log("Agent registered:", data);
       setIsAgentRegistered(true);
 
-      // Set agent profile if provided
+      // Set agent profile
       if (data.agent) {
         setAgentProfile(data.agent);
       } else {
@@ -292,7 +291,7 @@ export default function SupportChatPage() {
         lastActivity: new Date().toISOString(),
         customerProfile: {
           id: data.customerId,
-          name: "Customer", // Will be updated with real data
+          name: "Customer",
           userType: data.customerType,
         },
       };
@@ -312,19 +311,21 @@ export default function SupportChatPage() {
 
     const handleCustomerMessage = (data: any) => {
       console.log("Customer message received:", data);
-      
+
       // Determine if the message is actually an image based on content
-      const isCloudinaryImage = typeof data.message === 'string' && 
-        data.message.startsWith('https://res.cloudinary.com');
-      
+      const isCloudinaryImage =
+        typeof data.message === "string" &&
+        data.message.startsWith("https://res.cloudinary.com");
+
       const message: SupportMessage = {
         id: `msg-${Date.now()}`,
         sessionId: data.sessionId,
         senderId: data.customerId,
         senderType: data.customerType,
         content: data.message,
-        // Override messageType to "image" if it's a Cloudinary URL
-        messageType: (data.messageType === "image" || isCloudinaryImage) ? "image" : "text",
+        // Override messageType to "image"
+        messageType:
+          data.messageType === "image" || isCloudinaryImage ? "image" : "text",
         timestamp: data.timestamp,
         metadata: data.metadata,
       };
@@ -346,7 +347,6 @@ export default function SupportChatPage() {
 
     const handleSupportChatStarted = (data: any) => {
       console.log("Support chat started:", data);
-      // This would be for when we start a chat with a customer
     };
 
     const handleQueueUpdate = (data: any) => {
@@ -465,7 +465,7 @@ export default function SupportChatPage() {
             description: "Registered as support agent (local mode)",
           });
         }
-      }, 3000); // Wait 3 seconds for server response
+      }, 3000);
     } catch (error) {
       console.error("Error registering as agent:", error);
       toast({
@@ -527,9 +527,11 @@ export default function SupportChatPage() {
     }
 
     const messageContent = currentMessage; // Store before clearing
-    
+
     // Determine if the message is an image URL
-    const isCloudinaryImage = messageContent.startsWith('https://res.cloudinary.com');
+    const isCloudinaryImage = messageContent.startsWith(
+      "https://res.cloudinary.com"
+    );
     const messageType = isCloudinaryImage ? "image" : "text";
 
     try {
@@ -573,7 +575,7 @@ export default function SupportChatPage() {
               : msg
           )
         );
-      }, 5000); // 5 seconds timeout
+      }, 5000);
     } catch (error) {
       console.error("Error sending message:", error);
 
@@ -932,13 +934,15 @@ export default function SupportChatPage() {
                           : "bg-white text-gray-900"
                       }`}
                     >
-                      {message.messageType === "image" || 
-                       (message.messageType === "text" && 
-                        message.content.startsWith("https://res.cloudinary.com")) ? (
+                      {message.messageType === "image" ||
+                      (message.messageType === "text" &&
+                        message.content.startsWith(
+                          "https://res.cloudinary.com"
+                        )) ? (
                         <div className="mb-1">
-                          <img 
-                            src={message.content} 
-                            alt="Customer shared image" 
+                          <img
+                            src={message.content}
+                            alt="Customer shared image"
                             className="max-w-full rounded-md max-h-64 object-contain"
                           />
                         </div>

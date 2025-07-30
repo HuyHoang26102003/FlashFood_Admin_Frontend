@@ -425,7 +425,7 @@ const Page = () => {
     const pollInterval = setInterval(() => {
       console.log("🔄 Polling customers data...");
       fetchCustomersForPolling();
-    }, 30000); // 30 seconds
+    }, 30000);
 
     // Cleanup interval on unmount
     return () => {

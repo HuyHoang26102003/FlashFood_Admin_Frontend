@@ -308,7 +308,7 @@ const ConditionalTabContentRender = ({
 
       let uploadResponse: UploadResponse | null = null;
 
-      // Step 1: Upload avatar if there's a new image
+      // Upload avatar if there's a new image
       if (selectedImage) {
         const formData = new FormData();
         formData.append("file", selectedImage);
@@ -469,9 +469,6 @@ const ConditionalTabContentRender = ({
                         }`}
                       >
                         <div className="flex items-center  ">
-                          {/* <span className="text-lg">
-                            {action.title.includes("Generate") ? "⚡" : "⚙️"}
-                          </span> */}
                           <div className="text-left flex-1">
                             <div className="font-medium">{action.title}</div>
                             <div className="text-xs opacity-75 flex flex-wrap">

@@ -530,7 +530,7 @@ const Page = () => {
     const pollInterval = setInterval(() => {
       console.log("🔄 Polling restaurants data...");
       fetchRestaurantsForPolling();
-    }, 30000); // 30 seconds
+    }, 30000);
 
     // Cleanup interval on unmount
     return () => {
@@ -596,7 +596,6 @@ const Page = () => {
           "restaurant"
         );
         if (response.EC === 0) {
-          // Convert UserSearchResult to RestaurantData type
           const convertedResults: RestaurantData[] = response.data.results.map(
             (user: UserSearchResult) => ({
               id: user.id,

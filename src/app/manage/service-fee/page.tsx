@@ -37,7 +37,6 @@ import { Spinner } from "@/components/Spinner";
 import { SimplePagination } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
 
-// Định nghĩa type cho finance rule
 interface DriverFixedWage {
   [key: string]: string | number;
 }
@@ -89,35 +88,31 @@ const FinanceRulePage = () => {
       setIsLoading(false);
     }
   };
-  // Fetch finance rules từ API
   useEffect(() => {
     fetchRules();
   }, [currentPage]);
 
-  // Handle mở modal edit
   const handleEdit = (rule: FinanceRule) => {
     setSelectedRule(rule);
     setOpenEdit(true);
   };
 
-  // Handle mở modal add
   const handleOpenAdd = () => {
     setNewRule({
-      id: "", // Sẽ được server tạo
+      id: "",
       driver_fixed_wage: {},
       customer_care_hourly_wage: 0,
       app_service_fee: 0,
       restaurant_commission: 0,
-      created_by_id: "", // Giả sử sẽ được điền từ context auth sau
-      created_by: { first_name: "", last_name: "" }, // Tạm để trống
+      created_by_id: "",
+      created_by: { first_name: "", last_name: "" },
       description: "",
-      created_at: Date.now() / 1000, // Epoch seconds
+      created_at: Date.now() / 1000,
     });
     setNewWageEntry({ range: "", value: "" });
     setOpenAdd(true);
   };
 
-  // Handle submit chỉnh sửa rule
   const handleSaveEdit = async () => {
     if (!selectedRule) return;
     try {
@@ -161,7 +156,6 @@ const FinanceRulePage = () => {
     }
   };
 
-  // Handle submit thêm rule mới
   const handleSaveAdd = async () => {
     if (!newRule) return;
     try {
@@ -198,17 +192,14 @@ const FinanceRulePage = () => {
     }
   };
 
-  // Handle thay đổi giá trị trong form (edit)
   const handleChangeEdit = (field: keyof FinanceRule, value: string) => {
     setSelectedRule((prev) => (prev ? { ...prev, [field]: value } : null));
   };
 
-  // Handle thay đổi giá trị trong form (add)
   const handleChangeAdd = (field: keyof FinanceRule, value: string) => {
     setNewRule((prev) => (prev ? { ...prev, [field]: value } : null));
   };
 
-  // Handle thay đổi JSON driver_fixed_wage (edit)
   const handleDriverWageChangeEdit = (range: string, value: string) => {
     setSelectedRule((prev) =>
       prev
@@ -223,7 +214,6 @@ const FinanceRulePage = () => {
     );
   };
 
-  // Handle thay đổi JSON driver_fixed_wage (add)
   const handleDriverWageChangeAdd = (range: string, value: string) => {
     setNewRule((prev) =>
       prev
@@ -246,7 +236,7 @@ const FinanceRulePage = () => {
 
   // Apply latest service fee
   const handleApplyLatest = () => {
-    const latestRule = rules[rules.length - 1]; // Lấy rule mới nhất
+    const latestRule = rules[rules.length - 1];
     if (latestRule) {
       setNewRule((prev) =>
         prev
@@ -262,7 +252,6 @@ const FinanceRulePage = () => {
     }
   };
 
-  // Định nghĩa columns cho react-table
   const columns: ColumnDef<FinanceRule>[] = [
     {
       id: "select",
@@ -390,7 +379,6 @@ const FinanceRulePage = () => {
         <Button onClick={handleOpenAdd}>Add New Rule</Button>
       </div>
 
-      {/* Table dùng react-table */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -431,7 +419,6 @@ const FinanceRulePage = () => {
         />
       </div>
 
-      {/* Modal chỉnh sửa rule */}
       {selectedRule && (
         <Dialog open={openEdit} onOpenChange={setOpenEdit}>
           <DialogContent className="h-[90vh] w-screen overflow-y-scroll">
@@ -525,7 +512,6 @@ const FinanceRulePage = () => {
         </Dialog>
       )}
 
-      {/* Modal thêm rule mới */}
       {newRule && (
         <Dialog open={openAdd} onOpenChange={setOpenAdd}>
           <DialogContent className="h-[90vh] w-screen overflow-y-scroll">
@@ -582,7 +568,6 @@ const FinanceRulePage = () => {
                     <div key={range} className="flex items-center gap-2 mb-1">
                       <Input value={range} disabled className="w-1/3" />
                       <Input
-                        // type="number"
                         value={value}
                         onChange={(e) =>
                           handleDriverWageChangeAdd(range, e.target.value)
@@ -606,7 +591,6 @@ const FinanceRulePage = () => {
                   />
                   <Input
                     placeholder="Wage"
-                    // type="number"
                     value={newWageEntry.value}
                     onChange={(e) =>
                       setNewWageEntry({
